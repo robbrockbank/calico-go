@@ -1,0 +1,10 @@
+package: github.com/projectcalico/calico-go
+version: ""
+import:
+- package: github.com/coreos/etcd
+  subpackages:
+  - client
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: github.com/fvbock/trie
