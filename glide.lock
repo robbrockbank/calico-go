@@ -1,0 +1,24 @@
+hash: 8b28e4dd10db5f16d607b7a28fc2ea6d5e9aa66e8f0d8927efefab7fd02d636e
+updated: 2016-05-22T13:36:42.88661451+01:00
+imports:
+- name: github.com/coreos/etcd
+  version: f20573b57637181852ebc9c56a66465de13f7cac
+  subpackages:
+  - client
+  - pkg/pathutil
+  - pkg/types
+- name: github.com/docopt/docopt-go
+  version: 784ddc588536785e7299f7272f39101f7faccc3f
+- name: github.com/fvbock/trie
+  version: 1d40233c66bdef97a7d978cbe799531a6acf1ea6
+- name: github.com/ugorji/go
+  version: a396ed22fc049df733440d90efe17475e3929ccb
+  subpackages:
+  - codec
+- name: golang.org/x/net
+  version: 0c607074acd38c5f23d1344dfe74c977464d1257
+  subpackages:
+  - context
+- name: gopkg.in/vmihailenco/msgpack.v2
+  version: 005134bfb4bf69b74e05382eddacea6a4585e4aa
+devImports: []

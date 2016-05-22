@@ -1,5 +1,4 @@
 package: github.com/projectcalico/calico-go
-version: ""
 import:
 - package: github.com/coreos/etcd
   subpackages:
@@ -8,3 +7,5 @@ import:
   subpackages:
   - context
 - package: github.com/fvbock/trie
+- package: github.com/docopt/docopt-go
+- package: gopkg.in/vmihailenco/msgpack.v2
