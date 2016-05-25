@@ -17,6 +17,11 @@ const usage = `etcd driver.
 Usage:
   etcd-driver <felix-socket>`
 
+const (
+	actionSet uint8 = iota
+	actionDel
+	actionSnapFinished
+)
 
 func main() {
 	// Parse command-line args.
@@ -46,7 +51,7 @@ func main() {
 	// queue events onto the etcdEvents channel.  If it drops out of sync,
 	// it will signal on the resyncIndex channel.
 	etcdEvents := make(chan event, 20000)
-	resyncIndex := make(chan uint64, 1)
+	resyncIndex := make(chan uint64, 5)
 	go watchEtcd(etcdEvents, resyncIndex)
 
 	// Start a background thread to read snapshots from etcd.  If will
@@ -54,12 +59,14 @@ func main() {
 	// resyncIndex channel.
 	snapshotUpdates := make(chan event)
 	go readSnapshotsFromEtcd(snapshotUpdates, resyncIndex)
+
+	mergeUpdates(snapshotUpdates, etcdEvents, toFelix)
 }
 
 func readSnapshotsFromEtcd(snapshotUpdates chan<- event, resyncIndex <-chan uint64) {
 	cfg := client.Config{
-		Endpoints: []string{"http://127.0.0.1:2379"},
-		Transport: client.DefaultTransport,
+		Endpoints:               []string{"http://127.0.0.1:2379"},
+		Transport:               client.DefaultTransport,
 		HeaderTimeoutPerRequest: 10 * time.Second,
 	}
 	c, err := client.New(cfg)
@@ -78,12 +85,22 @@ func readSnapshotsFromEtcd(snapshotUpdates chan<- event, resyncIndex <-chan uint
 		// index, otherwise we could miss some updates.  (Since we
 		// may connect to a follower server, it's possible, if
 		// unlikely, for us to read a stale snapshot.)
-		minIndex := <- resyncIndex
+		minIndex := <-resyncIndex
+
+		// In case we keep resyncing, drain the queue.
+		for {
+			select {
+			case minIndex = <-resyncIndex:
+			default:
+				break
+			}
+		}
 
 		for {
 			resp, err := kapi.Get(context.Background(), "/", &getOpts)
 			if err != nil {
 				println("Error getting snapshot, retrying...", err)
+				time.Sleep(1 * time.Second)
 			} else {
 				if resp.Index < minIndex {
 					println("Retrieved stale snapshot, rereading...")
@@ -91,8 +108,27 @@ func readSnapshotsFromEtcd(snapshotUpdates chan<- event, resyncIndex <-chan uint
 				}
 
 				// If we get here, we should have a good snapshot.
-				resp.Node.
+				sendNode(resp.Node, snapshotUpdates, resp)
+				snapshotUpdates <- event{
+					action:actionSnapFinished,
+				}
+				break
 			}
+		}
+	}
+}
+
+func sendNode(node *client.Node, snapshotUpdates chan<- event, resp *client.Response) {
+	if !node.Dir {
+		snapshotUpdates <- event{
+			key:           node.Key,
+			modifiedIndex: resp.Index,
+			valueOrNil:    node.Value,
+			action:        actionSet,
+		}
+	} else {
+		for _, child := range node.Nodes {
+			sendNode(child, snapshotUpdates, resp)
 		}
 	}
 }
@@ -130,18 +166,18 @@ func watchEtcd(etcdEvents chan<- event, resyncIndex chan<- uint64) {
 				time.Sleep(1 * time.Second)
 			}
 		} else {
-			var actionType string
+			var actionType uint8
 			switch resp.Action {
 			case "set", "compareAndSwap", "update", "create":
-				actionType = "set"
+				actionType = actionSet
 			case "delete", "compareAndDelete", "expire":
-				actionType = "delete"
+				actionType = actionDel
 			default:
 				panic("Unknown action type")
 			}
 
 			node := resp.Node
-			if node.Dir && actionType == "set" {
+			if node.Dir && actionType == actionSet {
 				continue
 			}
 			if lostSync {
@@ -155,6 +191,7 @@ func watchEtcd(etcdEvents chan<- event, resyncIndex chan<- uint64) {
 				modifiedIndex: node.ModifiedIndex,
 				key:           resp.Node.Key,
 				valueOrNil:    node.Value,
+				snapshotStarting: lostSync,
 			}
 		}
 	}
@@ -200,12 +237,34 @@ func sendMessagesToFelix(felixEncoder *msgpack.Encoder,
 }
 
 type event struct {
-	action        string
-	modifiedIndex int
-	key           string
-	valueOrNil    string
+	action           uint8
+	modifiedIndex    uint64
+	key              string
+	valueOrNil       string
+	snapshotStarting bool
+	snapshotFinished bool
 }
 
-func mergeUpdates() {
-
+func mergeUpdates(snapshotUpdates <-chan event, watcherUpdates <-chan event,
+	toFelix chan<- map[string]interface{}) {
+	var e event
+	var minSnapshotIndex uint64
+	for {
+		select {
+		case e = <-snapshotUpdates:
+		case e = <-watcherUpdates:
+		}
+		if e.snapshotStarting {
+			// Watcher lost sync, need to track deletions until
+			// we get a snapshot from after this index.
+			minSnapshotIndex = e.modifiedIndex
+		}
+		if e.action == actionSet {
+			toFelix <- map[string]interface{}{
+				"type": "u",
+				"k": e.key,
+				"v": e.valueOrNil,
+			}
+		}
+	}
 }
