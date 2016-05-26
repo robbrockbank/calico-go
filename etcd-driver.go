@@ -9,6 +9,7 @@ import (
 	"github.com/docopt/docopt-go"
 	"golang.org/x/net/context"
 	"gopkg.in/vmihailenco/msgpack.v2"
+	"gopkg.in/tchap/go-patricia.v2/patricia"
 	"net"
 )
 
@@ -63,7 +64,7 @@ func main() {
 	mergeUpdates(snapshotUpdates, etcdEvents, toFelix)
 }
 
-func readSnapshotsFromEtcd(snapshotUpdates chan<- event, resyncIndex <-chan uint64) {
+func readSnapshotsFromEtcd(snapshotUpdates chan <- event, resyncIndex <-chan uint64) {
 	cfg := client.Config{
 		Endpoints:               []string{"http://127.0.0.1:2379"},
 		Transport:               client.DefaultTransport,
@@ -118,7 +119,7 @@ func readSnapshotsFromEtcd(snapshotUpdates chan<- event, resyncIndex <-chan uint
 	}
 }
 
-func sendNode(node *client.Node, snapshotUpdates chan<- event, resp *client.Response) {
+func sendNode(node *client.Node, snapshotUpdates chan <- event, resp *client.Response) {
 	if !node.Dir {
 		snapshotUpdates <- event{
 			key:           node.Key,
@@ -133,7 +134,7 @@ func sendNode(node *client.Node, snapshotUpdates chan<- event, resp *client.Resp
 	}
 }
 
-func watchEtcd(etcdEvents chan<- event, resyncIndex chan<- uint64) {
+func watchEtcd(etcdEvents chan <- event, resyncIndex chan <- uint64) {
 	cfg := client.Config{
 		Endpoints: []string{"http://127.0.0.1:2379"},
 		Transport: client.DefaultTransport,
@@ -157,7 +158,7 @@ func watchEtcd(etcdEvents chan<- event, resyncIndex chan<- uint64) {
 		if err != nil {
 			errCode := err.(client.Error).Code
 			if errCode == client.ErrorCodeWatcherCleared ||
-				errCode == client.ErrorCodeEventIndexCleared {
+			errCode == client.ErrorCodeEventIndexCleared {
 				println("Lost sync with etcd, restarting watcher")
 				watcher = kapi.Watcher("/", &watcherOpts)
 				lostSync = true
@@ -198,7 +199,7 @@ func watchEtcd(etcdEvents chan<- event, resyncIndex chan<- uint64) {
 }
 
 func readMessagesFromFelix(felixDecoder *msgpack.Decoder,
-	toFelix chan<- map[string]interface{}) {
+toFelix chan <- map[string]interface{}) {
 	for {
 		msg, err := felixDecoder.DecodeMap()
 		if err != nil {
@@ -209,7 +210,7 @@ func readMessagesFromFelix(felixDecoder *msgpack.Decoder,
 		case "init": // Hello message from felix
 			// Respond with config.
 			fmt.Println("Init message from felix, responding " +
-				"with config.")
+			"with config.")
 			rsp := map[string]interface{}{
 				"type": "config_loaded",
 				"global": map[string]string{
@@ -225,7 +226,7 @@ func readMessagesFromFelix(felixDecoder *msgpack.Decoder,
 }
 
 func sendMessagesToFelix(felixEncoder *msgpack.Encoder,
-	toFelix <-chan map[string]interface{}) {
+toFelix <-chan map[string]interface{}) {
 	for {
 		msg := <-toFelix
 		fmt.Println("Writing msg to felix", msg)
@@ -246,9 +247,9 @@ type event struct {
 }
 
 func mergeUpdates(snapshotUpdates <-chan event, watcherUpdates <-chan event,
-	toFelix chan<- map[string]interface{}) {
+toFelix chan <- map[string]interface{}) {
 	var e event
-	var minSnapshotIndex uint64
+	//var minSnapshotIndex uint64
 	for {
 		select {
 		case e = <-snapshotUpdates:
@@ -257,7 +258,7 @@ func mergeUpdates(snapshotUpdates <-chan event, watcherUpdates <-chan event,
 		if e.snapshotStarting {
 			// Watcher lost sync, need to track deletions until
 			// we get a snapshot from after this index.
-			minSnapshotIndex = e.modifiedIndex
+			//minSnapshotIndex = e.modifiedIndex
 		}
 		if e.action == actionSet {
 			toFelix <- map[string]interface{}{
@@ -268,3 +269,73 @@ func mergeUpdates(snapshotUpdates <-chan event, watcherUpdates <-chan event,
 		}
 	}
 }
+
+type HighWatermarkTrie struct {
+	hwms          *patricia.Trie
+	deletion_hwms *patricia.Trie
+	deletion_hwm  uint64
+}
+
+func NewHighWatermarkTrie() (*HighWatermarkTrie) {
+	trie := new(HighWatermarkTrie)
+	trie.hwms = patricia.NewTrie()
+	trie.deletion_hwms = nil  // No deletion tracking in progress
+	return trie
+}
+
+func (trie *HighWatermarkTrie) StartTrackingDeletions() {
+	trie.deletion_hwms = patricia.NewTrie()
+	trie.deletion_hwm = 0
+}
+
+func (trie *HighWatermarkTrie) StopTrackingDeletions() {
+	trie.deletion_hwms = nil
+	trie.deletion_hwm = 0
+}
+
+func (trie *HighWatermarkTrie) UpdateHwm(key string, newModIdx uint64) uint64 {
+	if trie.deletion_hwms != nil {
+		// Optimization: only check if this key is in the deletion
+		// trie if we've seen at least one deletion since...
+		if newModIdx < trie.deletion_hwm {
+			_, delHwm := findLongestPrefix(trie.deletion_hwms, key)
+			if delHwm != nil {
+				if newModIdx < delHwm.(uint64) {
+					return delHwm.(uint64)
+				}
+			}
+		}
+	}
+
+	// Get the old value
+	oldHwmOrNil := trie.hwms.Get(patricia.Prefix(key))
+	if oldHwmOrNil != nil {
+		oldHwm := oldHwmOrNil.(uint64)
+		if oldHwm < newModIdx {
+			trie.hwms.Set(patricia.Prefix(key), newModIdx)
+		}
+	}
+	if  oldHwmOrNil != nil {
+		return oldHwmOrNil.(uint64)
+	} else {
+		return 0
+	}
+}
+
+func findLongestPrefix(trie *patricia.Trie, key string) (patricia.Prefix, patricia.Item) {
+	var longestPrefix patricia.Prefix
+	var longestItem patricia.Item
+
+	trie.VisitPrefixes(patricia.Prefix(key),
+		func(prefix patricia.Prefix, item patricia.Item) error {
+			if len(prefix) > len(longestPrefix) {
+				longestPrefix = prefix
+				longestItem = item
+			}
+			return nil
+		})
+	return longestPrefix, longestItem
+}
+
+
+

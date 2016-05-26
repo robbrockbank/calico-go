@@ -1,5 +1,5 @@
-hash: 8b28e4dd10db5f16d607b7a28fc2ea6d5e9aa66e8f0d8927efefab7fd02d636e
-updated: 2016-05-22T13:36:42.88661451+01:00
+hash: 391568b16cd7adc958bd753a195ab159484d36649a899ebdbe368d58764a7e70
+updated: 2016-05-26T17:08:53.89183936+01:00
 imports:
 - name: github.com/coreos/etcd
   version: f20573b57637181852ebc9c56a66465de13f7cac
@@ -11,6 +11,10 @@ imports:
   version: 784ddc588536785e7299f7272f39101f7faccc3f
 - name: github.com/fvbock/trie
   version: 1d40233c66bdef97a7d978cbe799531a6acf1ea6
+- name: github.com/golang/protobuf
+  version: 9e6977f30c91c78396e719e164e57f9287fff42c
+  subpackages:
+  - proto
 - name: github.com/ugorji/go
   version: a396ed22fc049df733440d90efe17475e3929ccb
   subpackages:
@@ -19,6 +23,22 @@ imports:
   version: 0c607074acd38c5f23d1344dfe74c977464d1257
   subpackages:
   - context
+- name: google.golang.org/appengine
+  version: 7f59a8c76b8594d06044bfe0bcbe475cb2020482
+  subpackages:
+  - datastore
+  - internal
+  - internal/datastore
+  - internal/app_identity
+  - internal/modules
+  - internal/base
+  - internal/remote_api
+- name: gopkg.in/tchap/go-patricia.v2
+  version: 42daf53d2c20234572a4640ac642df046505562d
+  subpackages:
+  - patricia
 - name: gopkg.in/vmihailenco/msgpack.v2
   version: 005134bfb4bf69b74e05382eddacea6a4585e4aa
+  subpackages:
+  - codes
 devImports: []
