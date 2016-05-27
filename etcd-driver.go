@@ -270,35 +270,35 @@ toFelix chan <- map[string]interface{}) {
 	}
 }
 
-type HighWatermarkTrie struct {
-	hwms          *patricia.Trie
-	deletion_hwms *patricia.Trie
-	deletion_hwm  uint64
+type HighWatermarkTracker struct {
+	hwms         *patricia.Trie
+	deletionHwms *patricia.Trie
+	deletionHwm  uint64
 }
 
-func NewHighWatermarkTrie() (*HighWatermarkTrie) {
-	trie := new(HighWatermarkTrie)
+func NewHighWatermarkTracker() (*HighWatermarkTracker) {
+	trie := new(HighWatermarkTracker)
 	trie.hwms = patricia.NewTrie()
-	trie.deletion_hwms = nil  // No deletion tracking in progress
+	trie.deletionHwms = nil  // No deletion tracking in progress
 	return trie
 }
 
-func (trie *HighWatermarkTrie) StartTrackingDeletions() {
-	trie.deletion_hwms = patricia.NewTrie()
-	trie.deletion_hwm = 0
+func (trie *HighWatermarkTracker) StartTrackingDeletions() {
+	trie.deletionHwms = patricia.NewTrie()
+	trie.deletionHwm = 0
 }
 
-func (trie *HighWatermarkTrie) StopTrackingDeletions() {
-	trie.deletion_hwms = nil
-	trie.deletion_hwm = 0
+func (trie *HighWatermarkTracker) StopTrackingDeletions() {
+	trie.deletionHwms = nil
+	trie.deletionHwm = 0
 }
 
-func (trie *HighWatermarkTrie) UpdateHwm(key string, newModIdx uint64) uint64 {
-	if trie.deletion_hwms != nil {
+func (trie *HighWatermarkTracker) StoreUpdate(key string, newModIdx uint64) uint64 {
+	if trie.deletionHwms != nil {
 		// Optimization: only check if this key is in the deletion
 		// trie if we've seen at least one deletion since...
-		if newModIdx < trie.deletion_hwm {
-			_, delHwm := findLongestPrefix(trie.deletion_hwms, key)
+		if newModIdx < trie.deletionHwm {
+			_, delHwm := findLongestPrefix(trie.deletionHwms, key)
 			if delHwm != nil {
 				if newModIdx < delHwm.(uint64) {
 					return delHwm.(uint64)
@@ -314,12 +314,48 @@ func (trie *HighWatermarkTrie) UpdateHwm(key string, newModIdx uint64) uint64 {
 		if oldHwm < newModIdx {
 			trie.hwms.Set(patricia.Prefix(key), newModIdx)
 		}
+	} else {
+		trie.hwms.Set(patricia.Prefix(key), newModIdx)
 	}
 	if  oldHwmOrNil != nil {
 		return oldHwmOrNil.(uint64)
 	} else {
 		return 0
 	}
+}
+
+func (trie *HighWatermarkTracker) StoreDeletion(key string, newModIdx uint64) []string {
+	if newModIdx > trie.deletionHwm {
+		trie.deletionHwm = newModIdx
+	}
+	prefix := patricia.Prefix(key)
+	if trie.deletionHwms != nil {
+		trie.deletionHwms.Set(prefix, newModIdx)
+	}
+	deletedKeys := make([]string, 1)
+	trie.hwms.VisitSubtree(prefix, func(prefix patricia.Prefix, item patricia.Item) error {
+		childKey := string(prefix)
+		deletedKeys = append(deletedKeys, childKey)
+		return nil
+	})
+	return deletedKeys
+}
+
+func (trie *HighWatermarkTracker) DeleteOldKeys(mwnLimit uint64) []string {
+	if trie.deletionHwms != nil {
+		panic("Deletion tracking not compatible with DeleteOldKeys")
+	}
+	deletedPrefixes := make([]patricia.Prefix, 100)
+	trie.hwms.Visit(func(prefix patricia.Prefix, item patricia.Item) error {
+		deletedPrefixes = append(deletedPrefixes, prefix)
+		return nil
+	})
+	deletedKeys := make([]string, len(deletedPrefixes))
+	for _, childPrefix := range deletedPrefixes {
+		deletedKeys = append(deletedKeys, string(childPrefix))
+		trie.hwms.Delete(childPrefix)
+	}
+	return deletedKeys
 }
 
 func findLongestPrefix(trie *patricia.Trie, key string) (patricia.Prefix, patricia.Item) {
