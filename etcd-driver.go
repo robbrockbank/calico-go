@@ -91,7 +91,7 @@ func readSnapshotsFromEtcd(snapshotUpdates chan<- event, resyncIndex <-chan uint
 			// server, it's possible, if unlikely, for us to read
 			// a stale snapshot.)
 			minIndex = <-resyncIndex
-			fmt.Println("Asked for snapshot > %v", minIndex)
+			fmt.Printf("Asked for snapshot > %v\n", minIndex)
 			if highestSnapshotIndex >= minIndex {
 				// We've already read a newer snapshot, no need to
 				// re-read.
@@ -119,7 +119,7 @@ func readSnapshotsFromEtcd(snapshotUpdates chan<- event, resyncIndex <-chan uint
 			sendNode(resp.Node, snapshotUpdates, resp)
 			snapshotUpdates <- event{
 				action:        actionSnapFinished,
-				modifiedIndex: resp.Index,
+				snapshotIndex: resp.Index,
 			}
 			if resp.Index > highestSnapshotIndex {
 				highestSnapshotIndex = resp.Index
@@ -134,7 +134,8 @@ func sendNode(node *client.Node, snapshotUpdates chan<- event, resp *client.Resp
 	if !node.Dir {
 		snapshotUpdates <- event{
 			key:           node.Key,
-			modifiedIndex: resp.Index,
+			modifiedIndex: node.ModifiedIndex,
+			snapshotIndex: resp.Index,
 			valueOrNil:    node.Value,
 			action:        actionSet,
 		}
@@ -242,17 +243,18 @@ func sendMessagesToFelix(felixEncoder *msgpack.Encoder,
 	toFelix <-chan map[string]interface{}) {
 	for {
 		msg := <-toFelix
-		fmt.Println("Writing msg to felix", msg)
+		//fmt.Println("Writing msg to felix", msg)
 		if err := felixEncoder.Encode(msg); err != nil {
 			panic("Failed to send message to felix")
 		}
-		fmt.Println("Wrote msg to felix", msg)
+		//fmt.Println("Wrote msg to felix", msg)
 	}
 }
 
 type event struct {
 	action           uint8
 	modifiedIndex    uint64
+	snapshotIndex    uint64
 	key              string
 	valueOrNil       string
 	snapshotStarting bool
@@ -267,9 +269,9 @@ func mergeUpdates(snapshotUpdates <-chan event, watcherUpdates <-chan event,
 	for {
 		select {
 		case e = <-snapshotUpdates:
-			fmt.Printf("Snapshot update %v @ %v\n", e.key, e.modifiedIndex)
+			//fmt.Printf("Snapshot update %v @ %v\n", e.key, e.modifiedIndex)
 		case e = <-watcherUpdates:
-			fmt.Printf("Watcher update %v @ %v\n", e.key, e.modifiedIndex)
+			//fmt.Printf("Watcher update %v @ %v\n", e.key, e.modifiedIndex)
 		}
 		if e.snapshotStarting {
 			// Watcher lost sync, need to track deletions until
@@ -278,9 +280,20 @@ func mergeUpdates(snapshotUpdates <-chan event, watcherUpdates <-chan event,
 		}
 		switch e.action {
 		case actionSet:
-			oldIdx := hwms.StoreUpdate(e.key, e.modifiedIndex)
-			fmt.Printf("%v update %v -> %v\n",
-				e.key, oldIdx, e.modifiedIndex)
+			var indexToStore uint64
+			if e.snapshotIndex != 0 {
+				// Store the snapshot index in the trie so that
+				// we can scan the trie later looking for
+				// prefixes that are older than the snapshot
+				// (and hence must have been deleted while
+				// we were out-of-sync).
+				indexToStore = e.snapshotIndex
+			} else {
+				indexToStore = e.modifiedIndex
+			}
+			oldIdx := hwms.StoreUpdate(e.key, indexToStore)
+			//fmt.Printf("%v update %v -> %v\n",
+			//	e.key, oldIdx, e.modifiedIndex)
 			if oldIdx < e.modifiedIndex {
 				// Event is newer than value for that key.
 				// Send the update to Felix.
@@ -303,13 +316,13 @@ func mergeUpdates(snapshotUpdates <-chan event, watcherUpdates <-chan event,
 				}
 			}
 		case actionSnapFinished:
-			if e.modifiedIndex >= minSnapshotIndex {
+			if e.snapshotIndex >= minSnapshotIndex {
 				// Now in sync.
 				hwms.StopTrackingDeletions()
-				keys := hwms.DeleteOldKeys(e.modifiedIndex)
+				keys := hwms.DeleteOldKeys(e.snapshotIndex)
 				fmt.Printf("Snapshot finished at index %v; "+
 					"%v keys deleted.\n",
-					e.modifiedIndex, len(keys))
+					e.snapshotIndex, len(keys))
 				for key := range keys {
 					toFelix <- map[string]interface{}{
 						"type": "u",
