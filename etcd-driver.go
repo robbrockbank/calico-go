@@ -8,8 +8,8 @@ import (
 	"github.com/coreos/etcd/client"
 	"github.com/docopt/docopt-go"
 	"golang.org/x/net/context"
-	"gopkg.in/vmihailenco/msgpack.v2"
 	"gopkg.in/tchap/go-patricia.v2/patricia"
+	"gopkg.in/vmihailenco/msgpack.v2"
 	"net"
 )
 
@@ -64,7 +64,7 @@ func main() {
 	mergeUpdates(snapshotUpdates, etcdEvents, toFelix)
 }
 
-func readSnapshotsFromEtcd(snapshotUpdates chan <- event, resyncIndex <-chan uint64) {
+func readSnapshotsFromEtcd(snapshotUpdates chan<- event, resyncIndex <-chan uint64) {
 	cfg := client.Config{
 		Endpoints:               []string{"http://127.0.0.1:2379"},
 		Transport:               client.DefaultTransport,
@@ -80,46 +80,57 @@ func readSnapshotsFromEtcd(snapshotUpdates chan <- event, resyncIndex <-chan uin
 		Sort:      false,
 		Quorum:    false,
 	}
+	var highestSnapshotIndex uint64
+	var minIndex uint64
 	for {
-		// Wait for the watcher thread to tell us what index it starts
-		// from.  We need to load a snapshot with an equal or later
-		// index, otherwise we could miss some updates.  (Since we
-		// may connect to a follower server, it's possible, if
-		// unlikely, for us to read a stale snapshot.)
-		minIndex := <-resyncIndex
-
-		// In case we keep resyncing, drain the queue.
-		for {
-			select {
-			case minIndex = <-resyncIndex:
-			default:
-				break
+		if highestSnapshotIndex > 0 {
+			// Wait for the watcher thread to tell us what index
+			// it starts from.  We need to load a snapshot with
+			// an equal or later index, otherwise we could miss
+			// some updates.  (Since we may connect to a follower
+			// server, it's possible, if unlikely, for us to read
+			// a stale snapshot.)
+			minIndex = <-resyncIndex
+			fmt.Println("Asked for snapshot > %v", minIndex)
+			if highestSnapshotIndex >= minIndex {
+				// We've already read a newer snapshot, no need to
+				// re-read.
+				continue
 			}
 		}
 
+	readRetryLoop:
 		for {
-			resp, err := kapi.Get(context.Background(), "/", &getOpts)
+			resp, err := kapi.Get(context.Background(),
+				"/calico/v1", &getOpts)
 			if err != nil {
 				println("Error getting snapshot, retrying...", err)
 				time.Sleep(1 * time.Second)
-			} else {
-				if resp.Index < minIndex {
-					println("Retrieved stale snapshot, rereading...")
-					continue
-				}
-
-				// If we get here, we should have a good snapshot.
-				sendNode(resp.Node, snapshotUpdates, resp)
-				snapshotUpdates <- event{
-					action:actionSnapFinished,
-				}
-				break
+				continue readRetryLoop
 			}
+
+			if resp.Index < minIndex {
+				println("Retrieved stale snapshot, rereading...")
+				continue readRetryLoop
+			}
+
+			// If we get here, we should have a good
+			// snapshot.  Send it to the merge thread.
+			sendNode(resp.Node, snapshotUpdates, resp)
+			snapshotUpdates <- event{
+				action:        actionSnapFinished,
+				modifiedIndex: resp.Index,
+			}
+			if resp.Index > highestSnapshotIndex {
+				highestSnapshotIndex = resp.Index
+			}
+			break readRetryLoop
+
 		}
 	}
 }
 
-func sendNode(node *client.Node, snapshotUpdates chan <- event, resp *client.Response) {
+func sendNode(node *client.Node, snapshotUpdates chan<- event, resp *client.Response) {
 	if !node.Dir {
 		snapshotUpdates <- event{
 			key:           node.Key,
@@ -134,7 +145,7 @@ func sendNode(node *client.Node, snapshotUpdates chan <- event, resp *client.Res
 	}
 }
 
-func watchEtcd(etcdEvents chan <- event, resyncIndex chan <- uint64) {
+func watchEtcd(etcdEvents chan<- event, resyncIndex chan<- uint64) {
 	cfg := client.Config{
 		Endpoints: []string{"http://127.0.0.1:2379"},
 		Transport: client.DefaultTransport,
@@ -151,19 +162,20 @@ func watchEtcd(etcdEvents chan <- event, resyncIndex chan <- uint64) {
 		AfterIndex: 0, // Start at current index.
 		Recursive:  true,
 	}
-	watcher := kapi.Watcher("/", &watcherOpts)
+	watcher := kapi.Watcher("/calico/v1", &watcherOpts)
 	lostSync := true
 	for {
 		resp, err := watcher.Next(context.Background())
 		if err != nil {
 			errCode := err.(client.Error).Code
 			if errCode == client.ErrorCodeWatcherCleared ||
-			errCode == client.ErrorCodeEventIndexCleared {
+				errCode == client.ErrorCodeEventIndexCleared {
 				println("Lost sync with etcd, restarting watcher")
-				watcher = kapi.Watcher("/", &watcherOpts)
+				watcher = kapi.Watcher("/calico/v1",
+					&watcherOpts)
 				lostSync = true
 			} else {
-				fmt.Printf("Error from etcd %v", err)
+				fmt.Printf("Error from etcd %v\n", err)
 				time.Sleep(1 * time.Second)
 			}
 		} else {
@@ -183,15 +195,16 @@ func watchEtcd(etcdEvents chan <- event, resyncIndex chan <- uint64) {
 			}
 			if lostSync {
 				// Tell the snapshot thread that we need a
-				// new snapshot.
-				resyncIndex <- node.ModifiedIndex
+				// new snapshot.  The snapshot needs to be
+				// from our index or one lower.
+				resyncIndex <- node.ModifiedIndex - 1
 				lostSync = false
 			}
 			etcdEvents <- event{
-				action:        actionType,
-				modifiedIndex: node.ModifiedIndex,
-				key:           resp.Node.Key,
-				valueOrNil:    node.Value,
+				action:           actionType,
+				modifiedIndex:    node.ModifiedIndex,
+				key:              resp.Node.Key,
+				valueOrNil:       node.Value,
 				snapshotStarting: lostSync,
 			}
 		}
@@ -199,7 +212,7 @@ func watchEtcd(etcdEvents chan <- event, resyncIndex chan <- uint64) {
 }
 
 func readMessagesFromFelix(felixDecoder *msgpack.Decoder,
-toFelix chan <- map[string]interface{}) {
+	toFelix chan<- map[string]interface{}) {
 	for {
 		msg, err := felixDecoder.DecodeMap()
 		if err != nil {
@@ -210,7 +223,7 @@ toFelix chan <- map[string]interface{}) {
 		case "init": // Hello message from felix
 			// Respond with config.
 			fmt.Println("Init message from felix, responding " +
-			"with config.")
+				"with config.")
 			rsp := map[string]interface{}{
 				"type": "config_loaded",
 				"global": map[string]string{
@@ -226,7 +239,7 @@ toFelix chan <- map[string]interface{}) {
 }
 
 func sendMessagesToFelix(felixEncoder *msgpack.Encoder,
-toFelix <-chan map[string]interface{}) {
+	toFelix <-chan map[string]interface{}) {
 	for {
 		msg := <-toFelix
 		fmt.Println("Writing msg to felix", msg)
@@ -247,24 +260,63 @@ type event struct {
 }
 
 func mergeUpdates(snapshotUpdates <-chan event, watcherUpdates <-chan event,
-toFelix chan <- map[string]interface{}) {
+	toFelix chan<- map[string]interface{}) {
 	var e event
-	//var minSnapshotIndex uint64
+	var minSnapshotIndex uint64
+	hwms := NewHighWatermarkTracker()
 	for {
 		select {
 		case e = <-snapshotUpdates:
+			fmt.Printf("Snapshot update %v @ %v\n", e.key, e.modifiedIndex)
 		case e = <-watcherUpdates:
+			fmt.Printf("Watcher update %v @ %v\n", e.key, e.modifiedIndex)
 		}
 		if e.snapshotStarting {
 			// Watcher lost sync, need to track deletions until
 			// we get a snapshot from after this index.
-			//minSnapshotIndex = e.modifiedIndex
+			minSnapshotIndex = e.modifiedIndex
 		}
-		if e.action == actionSet {
-			toFelix <- map[string]interface{}{
-				"type": "u",
-				"k": e.key,
-				"v": e.valueOrNil,
+		switch e.action {
+		case actionSet:
+			oldIdx := hwms.StoreUpdate(e.key, e.modifiedIndex)
+			fmt.Printf("%v update %v -> %v\n",
+				e.key, oldIdx, e.modifiedIndex)
+			if oldIdx < e.modifiedIndex {
+				// Event is newer than value for that key.
+				// Send the update to Felix.
+				toFelix <- map[string]interface{}{
+					"type": "u",
+					"k":    e.key,
+					"v":    e.valueOrNil,
+				}
+			}
+		case actionDel:
+			deletedKeys := hwms.StoreDeletion(e.key,
+				e.modifiedIndex)
+			fmt.Printf("%v deleted; %v keys\n",
+				e.key, len(deletedKeys))
+			for child := range deletedKeys {
+				toFelix <- map[string]interface{}{
+					"type": "u",
+					"k":    child,
+					"v":    nil,
+				}
+			}
+		case actionSnapFinished:
+			if e.modifiedIndex >= minSnapshotIndex {
+				// Now in sync.
+				hwms.StopTrackingDeletions()
+				keys := hwms.DeleteOldKeys(e.modifiedIndex)
+				fmt.Printf("Snapshot finished at index %v; "+
+					"%v keys deleted.\n",
+					e.modifiedIndex, len(keys))
+				for key := range keys {
+					toFelix <- map[string]interface{}{
+						"type": "u",
+						"k":    key,
+						"v":    nil,
+					}
+				}
 			}
 		}
 	}
@@ -276,10 +328,10 @@ type HighWatermarkTracker struct {
 	deletionHwm  uint64
 }
 
-func NewHighWatermarkTracker() (*HighWatermarkTracker) {
+func NewHighWatermarkTracker() *HighWatermarkTracker {
 	trie := new(HighWatermarkTracker)
 	trie.hwms = patricia.NewTrie()
-	trie.deletionHwms = nil  // No deletion tracking in progress
+	trie.deletionHwms = nil // No deletion tracking in progress
 	return trie
 }
 
@@ -317,7 +369,7 @@ func (trie *HighWatermarkTracker) StoreUpdate(key string, newModIdx uint64) uint
 	} else {
 		trie.hwms.Set(patricia.Prefix(key), newModIdx)
 	}
-	if  oldHwmOrNil != nil {
+	if oldHwmOrNil != nil {
 		return oldHwmOrNil.(uint64)
 	} else {
 		return 0
@@ -341,17 +393,23 @@ func (trie *HighWatermarkTracker) StoreDeletion(key string, newModIdx uint64) []
 	return deletedKeys
 }
 
-func (trie *HighWatermarkTracker) DeleteOldKeys(mwnLimit uint64) []string {
+func (trie *HighWatermarkTracker) DeleteOldKeys(hwmLimit uint64) []string {
 	if trie.deletionHwms != nil {
 		panic("Deletion tracking not compatible with DeleteOldKeys")
 	}
-	deletedPrefixes := make([]patricia.Prefix, 100)
+	deletedPrefixes := make([]patricia.Prefix, 0, 100)
 	trie.hwms.Visit(func(prefix patricia.Prefix, item patricia.Item) error {
-		deletedPrefixes = append(deletedPrefixes, prefix)
+		if prefix == nil {
+			panic("nil prefix passed to visitor")
+		}
+		if item.(uint64) < hwmLimit {
+			deletedPrefixes = append(deletedPrefixes, prefix)
+		}
 		return nil
 	})
-	deletedKeys := make([]string, len(deletedPrefixes))
+	deletedKeys := make([]string, 0, len(deletedPrefixes))
 	for _, childPrefix := range deletedPrefixes {
+		fmt.Printf("Prefix: %v\n", childPrefix)
 		deletedKeys = append(deletedKeys, string(childPrefix))
 		trie.hwms.Delete(childPrefix)
 	}
@@ -372,6 +430,3 @@ func findLongestPrefix(trie *patricia.Trie, key string) (patricia.Prefix, patric
 		})
 	return longestPrefix, longestItem
 }
-
-
-
