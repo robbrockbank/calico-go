@@ -1,28 +1,27 @@
 package selector
 
 import (
-	"github.com/projectcalico/calico-go/labels"
 	"testing"
 )
 
 var selectorTests = []struct {
 	sel           string
-	expMatches    []labels.Labels
-	expNonMatches []labels.Labels
+	expMatches    []map[string]string
+	expNonMatches []map[string]string
 }{
 	{`a == "b"`,
-		[]labels.Labels{
+		[]map[string]string{
 			{"a": "b"},
 			{"a": "b", "c": "d"}},
-		[]labels.Labels{
+		[]map[string]string{
 			{},
 			{"a": "c"},
 			{"c": "d"},
 		}},
 	{`a == "b" && c == "d"`,
-		[]labels.Labels{
+		[]map[string]string{
 			{"a": "b", "c": "d"}},
-		[]labels.Labels{
+		[]map[string]string{
 			{},
 			{"a": "b", "c": "e"},
 			{"a": "c", "c": "d"},

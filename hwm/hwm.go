@@ -19,6 +19,8 @@ import (
 	"fmt"
 )
 
+// HighWatermarkTracker: map that tracks the highest value seen for each key.
+// Supports temporary tracking of deletions in order to resolve concurrent updates.
 type HighWatermarkTracker struct {
 	hwms         *patricia.Trie
 	deletionHwms *patricia.Trie

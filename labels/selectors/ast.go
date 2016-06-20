@@ -1,9 +1,7 @@
 package selector
 
-import "github.com/projectcalico/calico-go/labels"
-
 type Selector interface {
-	Evaluate(labels labels.Labels) bool
+	Evaluate(labels map[string]string) bool
 }
 
 type Label struct {
@@ -15,7 +13,7 @@ type LabelEqValue struct {
 	Value string
 }
 
-func (node LabelEqValue) Evaluate(labels labels.Labels) bool {
+func (node LabelEqValue) Evaluate(labels map[string]string) bool {
 	if val, ok := labels[node.LabelName]; ok {
 		return val == node.Value
 	} else {
@@ -27,7 +25,7 @@ type And struct {
 	Operands []Selector
 }
 
-func (node And) Evaluate(labels labels.Labels) bool {
+func (node And) Evaluate(labels map[string]string) bool {
 	for _, operand := range node.Operands {
 		if !operand.Evaluate(labels)  {
 			return false
