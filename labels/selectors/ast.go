@@ -4,16 +4,16 @@ type Selector interface {
 	Evaluate(labels map[string]string) bool
 }
 
-type Label struct {
+type LabelNode struct {
 	LabelName string
 }
 
-type LabelEqValue struct {
+type LabelEqValueNode struct {
 	LabelName string
 	Value string
 }
 
-func (node LabelEqValue) Evaluate(labels map[string]string) bool {
+func (node LabelEqValueNode) Evaluate(labels map[string]string) bool {
 	if val, ok := labels[node.LabelName]; ok {
 		return val == node.Value
 	} else {
@@ -21,11 +21,11 @@ func (node LabelEqValue) Evaluate(labels map[string]string) bool {
 	}
 }
 
-type And struct {
+type AndNode struct {
 	Operands []Selector
 }
 
-func (node And) Evaluate(labels map[string]string) bool {
+func (node AndNode) Evaluate(labels map[string]string) bool {
 	for _, operand := range node.Operands {
 		if !operand.Evaluate(labels)  {
 			return false

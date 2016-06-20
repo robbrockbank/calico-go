@@ -1,5 +1,5 @@
-hash: 36c389499e8f46c4457552e2fbd01baf4702134085737d432bb3b030723128fe
-updated: 2016-06-20T10:40:40.53181518+01:00
+hash: 336bda1383d5b61e4dc39a9e23899acfa28db9e40b8308837120994079b4fe44
+updated: 2016-06-20T19:32:34.885163223+01:00
 imports:
 - name: github.com/coreos/etcd
   version: f20573b57637181852ebc9c56a66465de13f7cac
@@ -15,6 +15,8 @@ imports:
   version: 9e6977f30c91c78396e719e164e57f9287fff42c
   subpackages:
   - proto
+- name: github.com/onsi/gomega
+  version: 3e93f011213c200aadafcb19ed56eb718381cfbd
 - name: github.com/op/go-logging
   version: 970db520ece77730c7e4724c61121037378659d9
 - name: github.com/ugorji/go
@@ -43,4 +45,6 @@ imports:
   version: 005134bfb4bf69b74e05382eddacea6a4585e4aa
   subpackages:
   - codes
+- name: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 devImports: []

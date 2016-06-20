@@ -1,5 +1,4 @@
 package: github.com/projectcalico/calico-go
-version: ""
 import:
 - package: github.com/coreos/etcd
   subpackages:
@@ -14,3 +13,5 @@ import:
   subpackages:
   - patricia
 - package: github.com/op/go-logging
+- package: github.com/onsi/gomega
+- package: gopkg.in/yaml.v2
