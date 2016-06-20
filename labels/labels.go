@@ -136,7 +136,7 @@ func (idx linearScanIndex) deleteMatch(selId, labelId string) {
 		if len(idx.labelIdsBySelId[selId]) == 0 {
 			delete(idx.labelIdsBySelId, selId)
 		}
-		delete(idx.selIdsByLabelId[labelId], labelId)
+		delete(idx.selIdsByLabelId[labelId], selId)
 		if len(idx.selIdsByLabelId[labelId]) == 0 {
 			delete(idx.selIdsByLabelId, labelId)
 		}

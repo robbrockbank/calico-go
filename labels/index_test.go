@@ -1,101 +1,171 @@
-package labels
+package labels_test
 
 import (
-	"testing"
+	. "github.com/projectcalico/calico-go/labels"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/projectcalico/calico-go/labels/selectors"
 )
 
 type update struct {
-	op string
+	op      string
 	labelId string
-	selId string
+	selId   string
 }
 
+var _ = Describe("Index", func() {
+	var (
+		updates []update
+		idx     Index
+	)
 
-func TestLinearScanIndexMainline(t *testing.T) {
-	var updates []update
-	idx := NewIndex(
-		func(selId, labelId string) {
-			t.Logf("Match started: %v, %v", selId, labelId)
-			updates = append(updates,
-				update{op: "start",
-					labelId: labelId,
-					selId: selId})
-		},
-	        func(selId, labelId string) {
-			t.Logf("Match stopped: %v, %v", selId, labelId)
-			updates = append(updates,
-				update{op: "stop",
-					labelId: labelId,
-					selId: selId})
+	onMatchStart := func(selId, labelId string) {
+		updates = append(updates,
+			update{op: "start",
+				labelId: labelId,
+				selId:   selId})
+	}
+	onMatchStop := func(selId, labelId string) {
+		updates = append(updates,
+			update{op: "stop",
+				labelId: labelId,
+				selId:   selId})
+	}
+
+	BeforeEach(func() {
+		updates = make([]update, 0)
+		idx = NewIndex(onMatchStart, onMatchStop)
+	})
+
+	a_eq_a1, _ := selector.Parse(`a=="a1"`)
+	a_eq_b, _ := selector.Parse(`a=="b"`)
+	c_eq_d, _ := selector.Parse(`c=="d"`)
+
+	Context("with empty index", func() {
+		It("should do nothing when adding labels", func() {
+			idx.UpdateLabels("foo", map[string]string{"a": "b"})
+			idx.UpdateLabels("bar", map[string]string{})
+			Expect(updates).To(BeEmpty())
+		})
+		It("should do nothing when adding selectors", func() {
+			idx.UpdateSelector("foo", a_eq_a1)
+			idx.UpdateSelector("bar", a_eq_a1)
+			Expect(updates).To(BeEmpty())
+		})
+	})
+
+	Context("with one set of labels added", func() {
+		BeforeEach(func() {
+			idx.UpdateLabels("l1",
+				map[string]string{"a": "b", "c": "d"})
 		})
 
-	idx.UpdateLabels("l1", map[string]string{"a": "a1", "b": "b1", "c": "c1"})
-	if len(updates) > 0 {
-		t.Error("Unexpected update %v after adding just labels", updates[0])
-	}
-	// Add a non-matching expression
-	sel, _ := selector.Parse(`d=="d1"`)
-	idx.UpdateSelector("e1", sel)
-	if len(updates) > 0 {
-		t.Errorf("Unexpected update %v after adding non-matching selector", updates[0])
-	}
-        // Add a matching expression
-	sel, _ = selector.Parse(`a=="a1"`)
-	idx.UpdateSelector("e2", sel)
-	if len(updates) != 1 {
-		t.Errorf("Unexpected/no updates %v after adding non-matching selector", updates)
-	} else {
-		update := updates[0]
-		if !(update.op == "start" && update.labelId == "l1" && update.selId == "e2") {
-			t.Errorf("Unexpected update %v after adding matching selector", updates[0])
-		}
-	}
-	updates = updates[:0]
+		It("should ignore non-matching selectors", func() {
+			By("ignoring selector add")
+			idx.UpdateSelector("e1", a_eq_a1)
+			By("ignoring selector delete")
+			idx.DeleteSelector("e1")
+			Expect(updates).To(BeEmpty())
+		})
 
-	// Update matching expression, still matches
-	sel, _ = selector.Parse(`b=="b1"`)
-	idx.UpdateSelector("e2", sel)
-	if len(updates) != 0 {
-		t.Errorf("Unexpected updates %v after adding updating selector", updates)
-	}
-        // Update matching expression, no-longer matches
-	sel, _ = selector.Parse(`a=="a2"`)
-	idx.UpdateSelector("e2", sel)
-	if len(updates) != 1 {
-		t.Errorf("Unexpected/no updates %v after upating to non-matching selector", updates)
-	} else {
-		update := updates[0]
-		if !(update.op == "stop" && update.labelId == "l1" && update.selId == "e2") {
-			t.Errorf("Unexpected update %v after adding matching selector", updates[0])
-		}
-	}
-	updates = updates[:0]
+		It("should fire correct events for matching selector", func() {
+			By("firing start event on addition")
+			idx.UpdateSelector("e1", a_eq_b)
+			Expect(updates).To(Equal([]update{update{
+				"start", "l1", "e1",
+			}}))
+			updates = updates[:0]
+			By("ignoring idempotent update")
+			idx.UpdateSelector("e1", a_eq_b)
+			Expect(updates).To(BeEmpty())
+			By("ignoring update to also-matching selector")
+			idx.UpdateSelector("e1", c_eq_d)
+			Expect(updates).To(BeEmpty())
+			By("firing stop event on deletion")
+			idx.DeleteSelector("e1")
+			Expect(updates).To(Equal([]update{update{
+				"stop", "l1", "e1",
+			}}))
+		})
 
-        // Update labels to match.
-	idx.UpdateLabels("l1", map[string]string{"a": "a2", "b": "b1", "d": "d1"})
-        if len(updates) != 2 {
-		t.Errorf("Unexpected/no updates %v after updating labels", updates)
-	} else {
-		update := updates[0]
-		if !(update.op == "start" && update.labelId == "l1") {
-			t.Errorf("Unexpected update %v after updating labels to match", updates[0])
-		}
-		update = updates[1]
-		if !(update.op == "start" && update.labelId == "l1") {
-			t.Errorf("Unexpected update %v after updating labels to match", updates[0])
-		}
-	}
-	updates = updates[:0]
+		It("should handle multiple matches", func() {
+			By("firing events for both")
+			idx.UpdateSelector("e1", a_eq_b)
+			idx.UpdateSelector("e2", c_eq_d)
+			Expect(updates).To(Equal([]update{
+				update{"start", "l1", "e1"},
+				update{"start", "l1", "e2"},
+			}))
+			updates = updates[:0]
 
-	//self.index.on_labels_update("l1", {"b": "b2", "d": "d1"})
-        //self.assert_add("e1", "l1")
-        //self.assert_add("e2", "l1")
-        //self.assert_no_updates()
-        //self.index.on_labels_update("l1", None)
-        //self.assert_remove("e1", "l1")
-        //self.assert_remove("e2", "l1")
-        //self.index.on_expression_update("e1", None)
-        //self.index.on_expression_update("e2", None)
-        //self.assert_indexes_empty()
-}
+			By("firing stop for update to non-matching selector")
+			idx.UpdateSelector("e2", a_eq_a1)
+			Expect(updates).To(Equal([]update{
+				update{"stop", "l1", "e2"},
+			}))
+			updates = updates[:0]
+
+			By("firing stop when selector deleted")
+			idx.DeleteSelector("e1")
+			Expect(updates).To(Equal([]update{
+				update{"stop", "l1", "e1"},
+			}))
+		})
+	})
+
+	Context("with one selector added", func() {
+		BeforeEach(func() {
+			idx.UpdateSelector("e1", a_eq_a1)
+		})
+
+		It("should ignore non-matching labels", func() {
+			idx.UpdateLabels("l1", map[string]string{"a": "b"})
+			Expect(updates).To(BeEmpty())
+		})
+		It("should fire correct events for match", func() {
+			By("firing for add")
+			idx.UpdateLabels("l1", map[string]string{"a": "a1"})
+			Expect(updates).To(Equal([]update{update{
+				"start", "l1", "e1",
+			}}))
+			updates = updates[:0]
+			By("ignoring idempotent add")
+			idx.UpdateLabels("l1", map[string]string{"a": "a1"})
+			Expect(updates).To(BeEmpty())
+			By("ignoring update to also-matching labels")
+			idx.UpdateLabels("l1",
+				map[string]string{"a": "a1", "b": "c"})
+			Expect(updates).To(BeEmpty())
+			By("firing stop on delete")
+			idx.DeleteLabels("l1")
+			Expect(updates).To(Equal([]update{update{
+				"stop", "l1", "e1",
+			}}))
+		})
+		It("should handle multiple matches", func() {
+			By("firing events for both")
+			idx.UpdateLabels("l1", map[string]string{"a": "a1"})
+			idx.UpdateLabels("l2",
+				map[string]string{"a": "a1", "b": "b1"})
+			Expect(updates).To(Equal([]update{
+				update{"start", "l1", "e1"},
+				update{"start", "l2", "e1"},
+			}))
+			updates = updates[:0]
+
+			By("handling updates to non-matching labels")
+			idx.UpdateLabels("l1", map[string]string{"a": "a2"})
+			Expect(updates).To(Equal([]update{
+				update{"stop", "l1", "e1"},
+			}))
+			updates = updates[:0]
+
+			By("handling removal of selector")
+			idx.DeleteSelector("e1")
+			Expect(updates).To(Equal([]update{
+				update{"stop", "l2", "e1"},
+			}))
+		})
+	})
+})
