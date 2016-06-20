@@ -1,5 +1,5 @@
-hash: 391568b16cd7adc958bd753a195ab159484d36649a899ebdbe368d58764a7e70
-updated: 2016-05-26T17:08:53.89183936+01:00
+hash: 36c389499e8f46c4457552e2fbd01baf4702134085737d432bb3b030723128fe
+updated: 2016-06-20T10:40:40.53181518+01:00
 imports:
 - name: github.com/coreos/etcd
   version: f20573b57637181852ebc9c56a66465de13f7cac
@@ -15,6 +15,8 @@ imports:
   version: 9e6977f30c91c78396e719e164e57f9287fff42c
   subpackages:
   - proto
+- name: github.com/op/go-logging
+  version: 970db520ece77730c7e4724c61121037378659d9
 - name: github.com/ugorji/go
   version: a396ed22fc049df733440d90efe17475e3929ccb
   subpackages:

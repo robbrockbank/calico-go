@@ -13,3 +13,4 @@ import:
 - package: gopkg.in/tchap/go-patricia.v2
   subpackages:
   - patricia
+- package: github.com/op/go-logging
