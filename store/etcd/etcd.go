@@ -16,20 +16,20 @@ package etcd
 
 import (
 	"fmt"
-	"github.com/projectcalico/calico-go/datastore"
+	"github.com/projectcalico/calico-go/store"
 	"github.com/projectcalico/calico-go/hwm"
 	"time"
 
-	"log"
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
+	"log"
 )
 
 func init() {
-	datastore.Register("etcd", New)
+	store.Register("etcd", New)
 }
 
-func New(callbacks datastore.Callbacks, config *datastore.DriverConfiguration) (datastore.Driver, error) {
+func New(callbacks store.Callbacks, config *store.DriverConfiguration) (store.Driver, error) {
 	return &etcdDriver{
 		callbacks: callbacks,
 		config:    config,
@@ -37,8 +37,8 @@ func New(callbacks datastore.Callbacks, config *datastore.DriverConfiguration) (
 }
 
 type etcdDriver struct {
-	callbacks datastore.Callbacks
-	config    *datastore.DriverConfiguration
+	callbacks store.Callbacks
+	config    *store.DriverConfiguration
 }
 
 func (driver *etcdDriver) Start() {
@@ -58,7 +58,12 @@ func (driver *etcdDriver) Start() {
 	go driver.mergeUpdates(snapshotUpdates, etcdEvents)
 
 	// TODO actually send some config
-	driver.callbacks.OnConfigLoaded()
+	driver.callbacks.OnConfigLoaded(
+		map[string]string{
+			"InterfacePrefix": "cali",
+		},
+		map[string]string{},
+	)
 }
 
 const (
@@ -67,6 +72,7 @@ const (
 	actionSnapFinished
 )
 
+// TODO Split this into different types of struct and use a type-switch to unpack.
 type event struct {
 	action           uint8
 	modifiedIndex    uint64
@@ -95,6 +101,7 @@ func (driver *etcdDriver) readSnapshotsFromEtcd(snapshotUpdates chan<- event, re
 	}
 	var highestSnapshotIndex uint64
 	var minIndex uint64
+
 	for {
 		if highestSnapshotIndex > 0 {
 			// Wait for the watcher thread to tell us what index
@@ -205,6 +212,7 @@ func (driver *etcdDriver) watchEtcd(etcdEvents chan<- event, resyncIndex chan<- 
 
 			node := resp.Node
 			if node.Dir && actionType == actionSet {
+				// Creation of a directory, we don't care.
 				continue
 			}
 			if lostSync {
@@ -260,7 +268,12 @@ func (driver *etcdDriver) mergeUpdates(snapshotUpdates <-chan event, watcherUpda
 			if oldIdx < e.modifiedIndex {
 				// Event is newer than value for that key.
 				// Send the update to Felix.
-				driver.callbacks.OnKeyUpdated(e.key, e.valueOrNil)
+				update := store.Update{
+					Key:        e.key,
+					ValueOrNil: &e.valueOrNil,
+				}
+				driver.callbacks.OnKeysUpdated(
+					[]store.Update{update})
 			}
 		case actionDel:
 			deletedKeys := hwms.StoreDeletion(e.key,
@@ -268,7 +281,12 @@ func (driver *etcdDriver) mergeUpdates(snapshotUpdates <-chan event, watcherUpda
 			fmt.Printf("%v deleted; %v keys\n",
 				e.key, len(deletedKeys))
 			for _, child := range deletedKeys {
-				driver.callbacks.OnKeyDeleted(child)
+				update := store.Update{
+					Key:        child,
+					ValueOrNil: nil,
+				}
+				driver.callbacks.OnKeysUpdated(
+					[]store.Update{update})
 			}
 		case actionSnapFinished:
 			if e.snapshotIndex >= minSnapshotIndex {
@@ -279,7 +297,12 @@ func (driver *etcdDriver) mergeUpdates(snapshotUpdates <-chan event, watcherUpda
 					"%v keys deleted.\n",
 					e.snapshotIndex, len(keys))
 				for _, key := range keys {
-					driver.callbacks.OnKeyDeleted(key)
+					update := store.Update{
+						Key:        key,
+						ValueOrNil: nil,
+					}
+					driver.callbacks.OnKeysUpdated(
+						[]store.Update{update})
 				}
 			}
 		}

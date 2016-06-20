@@ -17,8 +17,8 @@ package main
 import (
 	"fmt"
 	"github.com/docopt/docopt-go"
-	"github.com/projectcalico/calico-go/datastore"
-	"github.com/projectcalico/calico-go/datastore/etcd"
+	"github.com/projectcalico/calico-go/store"
+	"github.com/projectcalico/calico-go/store/etcd"
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"net"
 )
@@ -42,71 +42,88 @@ func main() {
 		panic("Failed to connect to felix")
 	}
 	fmt.Println("Felix connection:", felixConn)
+
+	// Wrap Felix socket in msgpack encoder/decoder.
 	felixDecoder := msgpack.NewDecoder(felixConn)
 	felixEncoder := msgpack.NewEncoder(felixConn)
 
-	// Channel to queue messages to felix.
+	// Multiple threads need to write to Felix so we use a channel to send
+	// messages to the single writer thread.
 	toFelix := make(chan map[string]interface{})
 
 	// Get an etcd driver
 	felixCbs := felixCallbacks{
 		toFelix: toFelix,
 	}
-	datastore, err := etcd.New(felixCbs, &datastore.DriverConfiguration{})
+	datastore, err := etcd.New(felixCbs, &store.DriverConfiguration{})
 
-	// Start background threads to read/write from/to the felix socket.
+	// Start background thread to read messages from Felix.
 	go readMessagesFromFelix(felixDecoder, datastore)
-	go sendMessagesToFelix(felixEncoder, toFelix)
+
+	// Use main thread for writing to Felix.
+	sendMessagesToFelix(felixEncoder, toFelix)
 }
 
 type felixCallbacks struct {
 	toFelix chan<- map[string]interface{}
 }
 
-func (cbs felixCallbacks) OnConfigLoaded() {
+func (cbs felixCallbacks) OnConfigLoaded(globalConfig map[string]string, hostConfig map[string]string) {
 	msg := map[string]interface{}{
-		"type": "config_loaded",
-		"global": map[string]string{
-			"InterfacePrefix": "tap",
-		},
-		"host": map[string]string{},
+		"type":   "config_loaded",
+		"global": globalConfig,
+		"host":   hostConfig,
 	}
 	cbs.toFelix <- msg
 }
 
-func (cbs felixCallbacks) OnStatusUpdated(status datastore.DriverStatus) {
+func (cbs felixCallbacks) OnStatusUpdated(status store.DriverStatus) {
 	statusString := "unknown"
 	switch status {
-	case datastore.WaitForDatastore: statusString = "wait-for-ready"
-	case datastore.InSync: statusString = "in-sync"
-	case datastore.ResyncInProgress: statusString = "resync"
+	case store.WaitForDatastore:
+		statusString = "wait-for-ready"
+	case store.InSync:
+		statusString = "in-sync"
+	case store.ResyncInProgress:
+		statusString = "resync"
 	}
 	msg := map[string]interface{}{
-		"type": "stat",
+		"type":   "stat",
 		"status": statusString,
 	}
 	cbs.toFelix <- msg
 }
 
-func (cbs felixCallbacks) OnKeyUpdated(key string, value string) {
-	msg := map[string]interface{}{
-		"type": "u",
-		"k": key,
-		"v": value,
+func (cbs felixCallbacks) OnKeysUpdated(updates []store.Update) {
+	for _, update := range updates {
+		var msg map[string]interface{}
+		if update.ValueOrNil != nil {
+			msg = map[string]interface{}{
+				"type": "u",
+				"k":    update.Key,
+				"v":    update.ValueOrNil,
+			}
+		} else {
+			msg = map[string]interface{}{
+				"type": "u",
+				"k":    update.Key,
+				"v":    nil,
+			}
+		}
+		cbs.toFelix <- msg
 	}
-	cbs.toFelix <- msg
 }
 
 func (cbs felixCallbacks) OnKeyDeleted(key string) {
 	msg := map[string]interface{}{
 		"type": "u",
-		"k": key,
-		"v": nil,
+		"k":    key,
+		"v":    nil,
 	}
 	cbs.toFelix <- msg
 }
 
-func readMessagesFromFelix(felixDecoder *msgpack.Decoder, datastore datastore.Driver) {
+func readMessagesFromFelix(felixDecoder *msgpack.Decoder, datastore store.Driver) {
 	for {
 		msg, err := felixDecoder.DecodeMap()
 		if err != nil {
@@ -115,7 +132,7 @@ func readMessagesFromFelix(felixDecoder *msgpack.Decoder, datastore datastore.Dr
 		msgType := msg.(map[interface{}]interface{})["type"].(string)
 		switch msgType {
 		case "init": // Hello message from felix
-			datastore.Start()  // Should trigger OnConfigLoaded.
+			datastore.Start() // Should trigger OnConfigLoaded.
 		default:
 			fmt.Println("XXXX Unknown message from felix:", msg)
 		}

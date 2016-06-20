@@ -12,33 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package datastore
+package store
 
-type DriverStatus uint8;
-const (
-	WaitForDatastore DriverStatus = iota
-	ResyncInProgress
-	InSync
-)
-
-type DriverConfiguration struct {
+type Dispatcher struct {
 
 }
 
-type Driver interface {
-	Start()
-	// ForceResync()
+func NewDispatcher() *Dispatcher {
+	return &Dispatcher{}
 }
 
-type Callbacks interface {
-	OnConfigLoaded()
-	OnStatusUpdated(status DriverStatus)
-	OnKeyUpdated(key string, value string)
-	OnKeyDeleted(key string)
-}
+type UpdateFunc func(update Update, captures ...string)
 
-type DriverConstructor func(callbacks Callbacks, config *DriverConfiguration) (Driver, error)
+func (dispatcher Dispatcher) RegisterPath(path string, onUpdate UpdateFunc) {
 
-func Register(name string, constructor DriverConstructor) {
-	// TODO Implement driver registration
 }
