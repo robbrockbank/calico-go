@@ -35,7 +35,14 @@ func (sel selectorRoot) String() string {
 func (sel selectorRoot) UniqueId() string {
 	if sel.cachedHash == nil {
 		hash := crypto.SHA224.New()
-		hash.Write([]byte(sel.String()))
+		bytes := []byte(sel.String())
+		written, err := hash.Write(bytes)
+		if err != nil {
+			panic(err)
+		}
+		if written != len(bytes) {
+			panic("Failed to write to Hash")
+		}
 		hashBytes := hash.Sum(make([]byte, 0, hash.Size()))
 		b64hash := base64.RawURLEncoding.EncodeToString(hashBytes)
 		sel.cachedHash = &b64hash
