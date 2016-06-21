@@ -79,3 +79,10 @@ func (node OrNode) Evaluate(labels map[string]string) bool {
 	}
 	return false
 }
+
+type AllNode struct {
+}
+
+func (node AllNode) Evaluate(labels map[string]string) bool {
+	return true
+}
