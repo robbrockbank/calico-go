@@ -16,27 +16,27 @@ func Parse(selector string) (sel Selector, err error) {
 		return
 	}
 	if tokens[0].Kind == TokEof {
-		return AllNode{}, nil
+		return selectorRoot{root:AllNode{}}, nil
 	}
 	log.Debugf("Tokens %v", tokens)
 	// The "||" operator has the lowest precedence so we start with that.
-	sel, remTokens, err := parseOrExpression(tokens)
+	node, remTokens, err := parseOrExpression(tokens)
 	if err != nil {
 		return
 	}
 	if len(remTokens) != 1 {
 		err = errors.New(fmt.Sprint("unexpected content at end of selector ", remTokens))
-		sel = nil
 		return
 	}
+	sel = selectorRoot{root:node}
 	return
 }
 
 // parseOrExpression parses a one or more "&&" terms, separated by "||" operators.
-func parseOrExpression(tokens []Token) (sel Selector, remTokens []Token, err error) {
+func parseOrExpression(tokens []Token) (sel node, remTokens []Token, err error) {
 	log.Debugf("Parsing ||s from %v", tokens)
 	// Look for the first expression.
-	andNodes := make([]Selector, 0)
+	andNodes := make([]node, 0)
 	sel, remTokens, err = parseAndExpression(tokens)
 	if err != nil {
 		return
@@ -65,10 +65,10 @@ func parseOrExpression(tokens []Token) (sel Selector, remTokens []Token, err err
 }
 
 // parseAndExpression parses a one or more operations, separated by "&&" operators.
-func parseAndExpression(tokens []Token) (sel Selector, remTokens []Token, err error) {
+func parseAndExpression(tokens []Token) (sel node, remTokens []Token, err error) {
 	log.Debugf("Parsing &&s from %v", tokens)
 	// Look for the first operation.
-	opNodes := make([]Selector, 0)
+	opNodes := make([]node, 0)
 	sel, remTokens, err = parseOperation(tokens)
 	if err != nil {
 		return
@@ -98,7 +98,7 @@ func parseAndExpression(tokens []Token) (sel Selector, remTokens []Token, err er
 
 // parseOperations parses a single, possibly negated operation (i.e. ==, !=, has()).
 // It also handles calling parseOrExpression recursively for parenthesized expressions.
-func parseOperation(tokens []Token) (sel Selector, remTokens []Token, err error) {
+func parseOperation(tokens []Token) (sel node, remTokens []Token, err error) {
 	log.Debugf("Parsing op from %v", tokens)
 	if len(tokens) == 0 {
 		err = errors.New("Unexpected end of string looking for op")

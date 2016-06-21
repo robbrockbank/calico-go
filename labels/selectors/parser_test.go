@@ -119,7 +119,20 @@ var badSelectors = []string{
 	`%`,              // Unexpected char
 }
 
-var _ = Describe("Index", func() {
+var canonicalisationTests = []struct{
+	input string
+	expected string
+	expectedUid string
+}{
+	{"", "all()", "yAKsl-CNoToGJvI4pNl6xXkWbnkbEnlK7IRXBA"},
+	{" all() ", "all()", "yAKsl-CNoToGJvI4pNl6xXkWbnkbEnlK7IRXBA"},
+	{" (all() )", "all()", "yAKsl-CNoToGJvI4pNl6xXkWbnkbEnlK7IRXBA"},
+	{`! (has( b)||! has(a ))`, "!(has(b) || !has(a))", "hSyHDjavfOProPgh2ui1yqeCS31caoii1SGzZw"},
+	{`! (a == "b"&&! c != "d")`, `!(a == "b" && !c != "d")`, "Vrj0UGjYYduG4mcP4DKl6qrmTxJhacqDcYiWqg"},
+}
+
+
+var _ = Describe("Parser", func() {
 	for _, test := range selectorTests {
 		Context(fmt.Sprintf("selector %#v", test.sel), func(test selectorTest) func() {
 			return func() {
@@ -141,6 +154,22 @@ var _ = Describe("Index", func() {
 						Expect(sel.Evaluate(labels)).To(BeFalse())
 					}
 				})
+				It("should match after canonicalising", func() {
+					for _, labels := range test.expMatches {
+						sel2, err := Parse(sel.String())
+						Expect(err).To(BeNil())
+						By(fmt.Sprintf("%#v matching %v", test.sel, labels))
+						Expect(sel2.Evaluate(labels)).To(BeTrue())
+					}
+				})
+				It("should not match after canonicalising", func() {
+					for _, labels := range test.expNonMatches {
+						sel2, err := Parse(sel.String())
+						Expect(err).To(BeNil())
+						By(fmt.Sprintf("%#v not matching %v", test.sel, labels))
+						Expect(sel2.Evaluate(labels)).To(BeFalse())
+					}
+				})
 			}
 		}(test))
 	}
@@ -150,6 +179,37 @@ var _ = Describe("Index", func() {
 			By(fmt.Sprint("Rejecting ", sel))
 			_, err := Parse(sel)
 			Expect(err).ToNot(BeNil())
+		}
+	})
+
+	It("should canonicalise properly", func() {
+		seenUids := make(map[string]string)
+		for _, test := range canonicalisationTests {
+			sel, err := Parse(test.input)
+			Expect(err).To(BeNil())
+			canon := sel.String()
+			Expect(canon).To(Equal(test.expected))
+
+			roundTripped, err := Parse(canon)
+			Expect(err).To(BeNil())
+			Expect(roundTripped.String()).To(Equal(canon))
+			uid := sel.UniqueId()
+			Expect(roundTripped.UniqueId()).To(Equal(uid))
+
+			if otherCanon := seenUids[uid]; otherCanon != "" {
+				Expect(otherCanon).To(Equal(canon))
+			} else {
+				seenUids[uid] = canon
+			}
+		}
+	})
+
+	It("should calculate the correct UID", func() {
+		for _, test := range canonicalisationTests {
+			sel, err := Parse(test.input)
+			Expect(err).To(BeNil())
+			Expect(sel.UniqueId()).To(Equal(test.expectedUid),
+				"incorrect UID for " + test.input)
 		}
 	})
 })
