@@ -1,6 +1,8 @@
-package selector
+package selector_test
 
 import (
+	. "github.com/projectcalico/calico-go/labels/selectors"
+
 	"testing"
 )
 
@@ -27,6 +29,17 @@ var selectorTests = []struct {
 			{"a": "c", "c": "d"},
 			{"c": "d"},
 			{"a": "b"},
+		}},
+	{`a == "b" || c == "d"`,
+		[]map[string]string{
+			{"a": "b", "c": "d"},
+			{"a": "b"},
+			{"c": "d"}},
+		[]map[string]string{
+			{},
+			{"a": "e", "c": "e"},
+			{"c": "e"},
+			{"a": "e"},
 		}},
 }
 

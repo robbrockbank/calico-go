@@ -18,6 +18,10 @@ var _ = Describe("Index", func() {
 	var (
 		updates []update
 		idx     Index
+		a_eq_a1 selector.Selector
+		a_eq_b selector.Selector
+		c_eq_d selector.Selector
+		err error
 	)
 
 	onMatchStart := func(selId, labelId string) {
@@ -36,11 +40,15 @@ var _ = Describe("Index", func() {
 	BeforeEach(func() {
 		updates = make([]update, 0)
 		idx = NewIndex(onMatchStart, onMatchStop)
+
+		a_eq_a1, err = selector.Parse(`a=="a1"`)
+		Expect(err).To(BeNil())
+		a_eq_b, err = selector.Parse(`a=="b"`)
+		Expect(err).To(BeNil())
+		c_eq_d, err = selector.Parse(`c=="d"`)
+		Expect(err).To(BeNil())
 	})
 
-	a_eq_a1, _ := selector.Parse(`a=="a1"`)
-	a_eq_b, _ := selector.Parse(`a=="b"`)
-	c_eq_d, _ := selector.Parse(`c=="d"`)
 
 	Context("with empty index", func() {
 		It("should do nothing when adding labels", func() {

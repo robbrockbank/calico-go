@@ -43,6 +43,9 @@ func NewIndex(onMatchStarted, onMatchStopped MatchCallback) Index {
 
 func (idx linearScanIndex) UpdateSelector(id string, sel selector.Selector) {
 	log.Debugf("Updating selector %v", id)
+	if sel == nil {
+		panic("Selector should not be nil")
+	}
 	idx.scanAllLabels(id, sel)
 	idx.selectorsById[id] = sel
 }
