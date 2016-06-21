@@ -2,8 +2,8 @@ package selector
 
 import (
 	"errors"
-	"github.com/op/go-logging"
 	"fmt"
+	"github.com/op/go-logging"
 )
 
 var log = logging.MustGetLogger("selector")
@@ -35,12 +35,15 @@ func Parse(selector string) (sel Selector, err error) {
 // parseOrExpression parses a one or more "&&" terms, separated by "||" operators.
 func parseOrExpression(tokens []Token) (sel Selector, remTokens []Token, err error) {
 	log.Debugf("Parsing ||s from %v", tokens)
+	// Look for the first expression.
 	andNodes := make([]Selector, 0)
 	sel, remTokens, err = parseAndExpression(tokens)
 	if err != nil {
 		return
 	}
 	andNodes = append(andNodes, sel)
+
+	// Then loop looking for "||" followed by an <expression>
 	for {
 		switch remTokens[0].Kind {
 		case TokOr:
@@ -64,12 +67,15 @@ func parseOrExpression(tokens []Token) (sel Selector, remTokens []Token, err err
 // parseAndExpression parses a one or more operations, separated by "&&" operators.
 func parseAndExpression(tokens []Token) (sel Selector, remTokens []Token, err error) {
 	log.Debugf("Parsing &&s from %v", tokens)
+	// Look for the first operation.
 	opNodes := make([]Selector, 0)
 	sel, remTokens, err = parseOperation(tokens)
 	if err != nil {
 		return
 	}
 	opNodes = append(opNodes, sel)
+
+	// Then loop looking for "&&" followed by another operation.
 	for {
 		switch remTokens[0].Kind {
 		case TokAnd:
@@ -98,6 +104,8 @@ func parseOperation(tokens []Token) (sel Selector, remTokens []Token, err error)
 		err = errors.New("Unexpected end of string looking for op")
 		return
 	}
+
+	// First, collapse any leading "!" operators to a single boolean.
 	negated := false
 	for {
 		if tokens[0].Kind == TokNot {
@@ -108,6 +116,7 @@ func parseOperation(tokens []Token) (sel Selector, remTokens []Token, err error)
 		}
 	}
 
+	// Then, look for the various types of operator.
 	switch tokens[0].Kind {
 	case TokHas:
 		sel = HasNode{tokens[0].Value.(string)}
@@ -138,21 +147,24 @@ func parseOperation(tokens []Token) (sel Selector, remTokens []Token, err error)
 			}
 		// TODO in and not in
 		default:
-			err = errors.New("Expected == or !=")
+			err = errors.New(fmt.Sprint("Expected == or != not ", tokens[1]))
 			return
 		}
 	case TokLParen:
+		// We hit a paren, skip past it, then recurse.
 		sel, remTokens, err = parseOrExpression(tokens[1:])
 		if err != nil {
 			return
 		}
+		// After parsing the nested expression, there should be
+		// a matching paren.
 		if len(remTokens) < 1 || remTokens[0].Kind != TokRParen {
 			err = errors.New("Expected )")
 			return
 		}
 		remTokens = remTokens[1:]
 	default:
-		err = errors.New("Unexpected token")
+		err = errors.New(fmt.Sprint("Unexpected token: ", tokens[0]))
 		return
 	}
 	if negated && err == nil {

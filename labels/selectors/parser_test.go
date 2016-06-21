@@ -102,21 +102,21 @@ var selectorTests = []selectorTest{
 }
 
 var badSelectors = []string{
-	"b == b",    // label == label
-	"'b1' == b", // literal on lhs
-	"b",         // bare label
-	"a b",       // Garbage
-	"!",         // Garbage
-	`foo == "bar" &`,         // Garbage
-	`foo == "bar" |`,         // Garbage
-	`"FOO`,      // Unterminated string
-	`"FOO'`,      // Unterminated string
-	`"FOO`,      // Unterminated string
-	`'FOO`,      // Unterminated string
-	`(`,      // Unterminated paren
-	`)`,      // Unterminated paren
-	`()`,      // Unterminated paren
-	`%`,      // Unexpected char
+	"b == b",         // label == label
+	"'b1' == b",      // literal on lhs
+	"b",              // bare label
+	"a b",            // Garbage
+	"!",              // Garbage
+	`foo == "bar" &`, // Garbage
+	`foo == "bar" |`, // Garbage
+	`"FOO`,           // Unterminated string
+	`"FOO'`,          // Unterminated string
+	`"FOO`,           // Unterminated string
+	`'FOO`,           // Unterminated string
+	`(`,              // Unterminated paren
+	`)`,              // Unterminated paren
+	`()`,             // Unterminated paren
+	`%`,              // Unexpected char
 }
 
 var _ = Describe("Index", func() {

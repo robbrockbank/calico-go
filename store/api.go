@@ -14,7 +14,8 @@
 
 package store
 
-type DriverStatus uint8;
+type DriverStatus uint8
+
 const (
 	WaitForDatastore DriverStatus = iota
 	ResyncInProgress
@@ -22,7 +23,6 @@ const (
 )
 
 type DriverConfiguration struct {
-
 }
 
 type Driver interface {
@@ -31,7 +31,7 @@ type Driver interface {
 }
 
 type Update struct {
-	Key string
+	Key        string
 	ValueOrNil *string
 }
 

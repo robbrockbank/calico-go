@@ -1,8 +1,8 @@
 package labels
 
 import (
-	"github.com/projectcalico/calico-go/labels/selectors"
 	"github.com/op/go-logging"
+	"github.com/projectcalico/calico-go/labels/selectors"
 )
 
 var log = logging.MustGetLogger("labels")
@@ -18,7 +18,7 @@ type MatchCallback func(selId, labelId string)
 
 type linearScanIndex struct {
 	// All known labels and selectors.
-	labelsById map[string]map[string]string
+	labelsById    map[string]map[string]string
 	selectorsById map[string]selector.Selector
 
 	// Current matches.
@@ -32,12 +32,12 @@ type linearScanIndex struct {
 
 func NewIndex(onMatchStarted, onMatchStopped MatchCallback) Index {
 	return linearScanIndex{
-		labelsById: make(map[string]map[string]string),
-		selectorsById: make(map[string]selector.Selector),
+		labelsById:      make(map[string]map[string]string),
+		selectorsById:   make(map[string]selector.Selector),
 		selIdsByLabelId: make(map[string]map[string]bool),
 		labelIdsBySelId: make(map[string]map[string]bool),
-		OnMatchStarted: onMatchStarted,
-		OnMatchStopped: onMatchStopped,
+		OnMatchStarted:  onMatchStarted,
+		OnMatchStopped:  onMatchStopped,
 	}
 }
 
@@ -99,7 +99,7 @@ func (idx linearScanIndex) scanAllSelectors(labelId string, labels map[string]st
 }
 
 func (idx linearScanIndex) updateMatches(selId string, sel selector.Selector,
-labelId string, labels map[string]string) {
+	labelId string, labels map[string]string) {
 	nowMatches := sel.Evaluate(labels)
 	if nowMatches {
 		idx.storeMatch(selId, labelId)
@@ -110,7 +110,7 @@ labelId string, labels map[string]string) {
 
 func (idx linearScanIndex) storeMatch(selId, labelId string) {
 	previouslyMatched := idx.labelIdsBySelId[selId][labelId]
-	if ! previouslyMatched {
+	if !previouslyMatched {
 		log.Debugf("Selector %v now matches labels %v", selId, labelId)
 		if labelIds, ok := idx.labelIdsBySelId[selId]; ok {
 			labelIds[labelId] = true

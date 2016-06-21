@@ -19,9 +19,9 @@ var _ = Describe("Index", func() {
 		updates []update
 		idx     Index
 		a_eq_a1 selector.Selector
-		a_eq_b selector.Selector
-		c_eq_d selector.Selector
-		err error
+		a_eq_b  selector.Selector
+		c_eq_d  selector.Selector
+		err     error
 	)
 
 	onMatchStart := func(selId, labelId string) {
@@ -48,7 +48,6 @@ var _ = Describe("Index", func() {
 		c_eq_d, err = selector.Parse(`c=="d"`)
 		Expect(err).To(BeNil())
 	})
-
 
 	Context("with empty index", func() {
 		It("should do nothing when adding labels", func() {

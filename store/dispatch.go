@@ -15,7 +15,6 @@
 package store
 
 type Dispatcher struct {
-
 }
 
 func NewDispatcher() *Dispatcher {

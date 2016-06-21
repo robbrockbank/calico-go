@@ -2,8 +2,8 @@ package selector
 
 import (
 	"errors"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 type tokenKind uint8
@@ -35,18 +35,18 @@ type Token struct {
 
 const (
 	identifierExpr = `[a-zA-Z_./-][a-zA-Z_./-0-9]*`
-	hasExpr = `has\(\s*(` + identifierExpr + `)\s*\)`
-	allExpr = `all\(\s*\)`
-	notInExpr = `not\s*in\b`
-	inExpr = `in\b`
+	hasExpr        = `has\(\s*(` + identifierExpr + `)\s*\)`
+	allExpr        = `all\(\s*\)`
+	notInExpr      = `not\s*in\b`
+	inExpr         = `in\b`
 )
 
 var (
 	identifierRegex, _ = regexp.Compile("^" + identifierExpr)
-	hasRegex, _ = regexp.Compile("^" + hasExpr)
-	allRegex, _ = regexp.Compile("^" + allExpr)
-	notInRegex, _ = regexp.Compile("^" + notInExpr)
-	inRegex, _ = regexp.Compile("^" + inExpr)
+	hasRegex, _        = regexp.Compile("^" + hasExpr)
+	allRegex, _        = regexp.Compile("^" + allExpr)
+	notInRegex, _      = regexp.Compile("^" + notInExpr)
+	inRegex, _         = regexp.Compile("^" + inExpr)
 )
 
 func Tokenize(input string) (tokens []Token, err error) {
@@ -73,7 +73,7 @@ func Tokenize(input string) (tokens []Token, err error) {
 			}
 			value := input[0:index]
 			tokens = append(tokens, Token{TokStringLiteral, value})
-			input = input[index + 1:]
+			input = input[index+1:]
 		case '\'':
 			input = input[1:]
 			index := strings.Index(input, `'`)
@@ -82,7 +82,7 @@ func Tokenize(input string) (tokens []Token, err error) {
 			}
 			value := input[0:index]
 			tokens = append(tokens, Token{TokStringLiteral, value})
-			input = input[index + 1:]
+			input = input[index+1:]
 		case '{':
 			panic("TODO: set literals")
 		case '=':
@@ -90,7 +90,7 @@ func Tokenize(input string) (tokens []Token, err error) {
 				tokens = append(tokens, Token{TokEq, nil})
 				input = input[2:]
 			} else {
-				return nil, errors.New("invalid operator")
+				return nil, errors.New("expected ==")
 			}
 		case '!':
 			if len(input) > 1 && input[1] == '=' {
@@ -105,14 +105,14 @@ func Tokenize(input string) (tokens []Token, err error) {
 				tokens = append(tokens, Token{TokAnd, nil})
 				input = input[2:]
 			} else {
-				return nil, errors.New("invalid operator")
+				return nil, errors.New("expected &&")
 			}
 		case '|':
 			if len(input) > 1 && input[1] == '|' {
 				tokens = append(tokens, Token{TokOr, nil})
 				input = input[2:]
 			} else {
-				return nil, errors.New("invalid operator")
+				return nil, errors.New("expected ||")
 			}
 		default:
 			// Handle less-simple cases with regex matches.  We've

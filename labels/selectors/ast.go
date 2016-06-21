@@ -10,7 +10,7 @@ type LabelNode struct {
 
 type LabelEqValueNode struct {
 	LabelName string
-	Value string
+	Value     string
 }
 
 func (node LabelEqValueNode) Evaluate(labels map[string]string) bool {
@@ -23,7 +23,7 @@ func (node LabelEqValueNode) Evaluate(labels map[string]string) bool {
 
 type LabelNeValueNode struct {
 	LabelName string
-	Value string
+	Value     string
 }
 
 func (node LabelNeValueNode) Evaluate(labels map[string]string) bool {
@@ -60,7 +60,7 @@ type AndNode struct {
 
 func (node AndNode) Evaluate(labels map[string]string) bool {
 	for _, operand := range node.Operands {
-		if !operand.Evaluate(labels)  {
+		if !operand.Evaluate(labels) {
 			return false
 		}
 	}
@@ -73,7 +73,7 @@ type OrNode struct {
 
 func (node OrNode) Evaluate(labels map[string]string) bool {
 	for _, operand := range node.Operands {
-		if operand.Evaluate(labels)  {
+		if operand.Evaluate(labels) {
 			return true
 		}
 	}
