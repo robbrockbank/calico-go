@@ -119,9 +119,9 @@ var badSelectors = []string{
 	`%`,              // Unexpected char
 }
 
-var canonicalisationTests = []struct{
-	input string
-	expected string
+var canonicalisationTests = []struct {
+	input       string
+	expected    string
 	expectedUid string
 }{
 	{"", "all()", "yAKsl-CNoToGJvI4pNl6xXkWbnkbEnlK7IRXBA"},
@@ -131,47 +131,45 @@ var canonicalisationTests = []struct{
 	{`! (a == "b"&&! c != "d")`, `!(a == "b" && !c != "d")`, "Vrj0UGjYYduG4mcP4DKl6qrmTxJhacqDcYiWqg"},
 }
 
-
 var _ = Describe("Parser", func() {
 	for _, test := range selectorTests {
-		Context(fmt.Sprintf("selector %#v", test.sel), func(test selectorTest) func() {
-			return func() {
-				var sel Selector
-				var err error
-				BeforeEach(func() {
-					sel, err = Parse(test.sel)
+		var test = test  // Take copy of variable for the closure.
+		Context(fmt.Sprintf("selector %#v", test.sel), func() {
+			var sel Selector
+			var err error
+			BeforeEach(func() {
+				sel, err = Parse(test.sel)
+				Expect(err).To(BeNil())
+			})
+			It("should match", func() {
+				for _, labels := range test.expMatches {
+					By(fmt.Sprintf("%#v matching %v", test.sel, labels))
+					Expect(sel.Evaluate(labels)).To(BeTrue())
+				}
+			})
+			It("should not match", func() {
+				for _, labels := range test.expNonMatches {
+					By(fmt.Sprintf("%#v not matching %v", test.sel, labels))
+					Expect(sel.Evaluate(labels)).To(BeFalse())
+				}
+			})
+			It("should match after canonicalising", func() {
+				for _, labels := range test.expMatches {
+					sel2, err := Parse(sel.String())
 					Expect(err).To(BeNil())
-				})
-				It("should match", func() {
-					for _, labels := range test.expMatches {
-						By(fmt.Sprintf("%#v matching %v", test.sel, labels))
-						Expect(sel.Evaluate(labels)).To(BeTrue())
-					}
-				})
-				It("should not match", func() {
-					for _, labels := range test.expNonMatches {
-						By(fmt.Sprintf("%#v not matching %v", test.sel, labels))
-						Expect(sel.Evaluate(labels)).To(BeFalse())
-					}
-				})
-				It("should match after canonicalising", func() {
-					for _, labels := range test.expMatches {
-						sel2, err := Parse(sel.String())
-						Expect(err).To(BeNil())
-						By(fmt.Sprintf("%#v matching %v", test.sel, labels))
-						Expect(sel2.Evaluate(labels)).To(BeTrue())
-					}
-				})
-				It("should not match after canonicalising", func() {
-					for _, labels := range test.expNonMatches {
-						sel2, err := Parse(sel.String())
-						Expect(err).To(BeNil())
-						By(fmt.Sprintf("%#v not matching %v", test.sel, labels))
-						Expect(sel2.Evaluate(labels)).To(BeFalse())
-					}
-				})
-			}
-		}(test))
+					By(fmt.Sprintf("%#v matching %v", test.sel, labels))
+					Expect(sel2.Evaluate(labels)).To(BeTrue())
+				}
+			})
+			It("should not match after canonicalising", func() {
+				for _, labels := range test.expNonMatches {
+					sel2, err := Parse(sel.String())
+					Expect(err).To(BeNil())
+					By(fmt.Sprintf("%#v not matching %v", test.sel, labels))
+					Expect(sel2.Evaluate(labels)).To(BeFalse())
+				}
+			})
+		})
 	}
 
 	It("Should reject bad selectors", func() {
@@ -209,7 +207,7 @@ var _ = Describe("Parser", func() {
 			sel, err := Parse(test.input)
 			Expect(err).To(BeNil())
 			Expect(sel.UniqueId()).To(Equal(test.expectedUid),
-				"incorrect UID for " + test.input)
+				"incorrect UID for "+test.input)
 		}
 	})
 })
