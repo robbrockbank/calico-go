@@ -1,3 +1,4 @@
 etcd-driver
 .idea
 *.bak
+*.coverprofile
