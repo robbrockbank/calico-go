@@ -1,4 +1,5 @@
 package: github.com/projectcalico/calico-go
+version: ""
 import:
 - package: github.com/coreos/etcd
   subpackages:
