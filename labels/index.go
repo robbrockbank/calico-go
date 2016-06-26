@@ -1,10 +1,8 @@
 package labels
 
 import (
-	"github.com/deckarep/golang-set"
 	"github.com/op/go-logging"
 	"github.com/projectcalico/calico-go/labels/selectors"
-	"github.com/projectcalico/calico-go/multidict"
 )
 
 var log = logging.MustGetLogger("labels")
