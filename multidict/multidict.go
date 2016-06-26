@@ -36,3 +36,9 @@ func (s2s StringToString) ContainsKey(key string) bool {
 	_, ok := s2s[key]
 	return ok
 }
+
+func (s2s StringToString) Iter(key string, f func(value string)) {
+	for value, _ := range(s2s[key]) {
+		f(value)
+	}
+}
