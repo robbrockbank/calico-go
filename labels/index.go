@@ -146,3 +146,4 @@ func (idx linearScanIndex) deleteMatch(selId, labelId string) {
 		idx.OnMatchStopped(selId, labelId)
 	}
 }
+
