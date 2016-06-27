@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Tigera Inc.
+// Copyright (c) 2016 Tigera, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import (
 	"github.com/docopt/docopt-go"
 	"github.com/projectcalico/calico-go/store"
 	"github.com/projectcalico/calico-go/store/etcd"
+	"github.com/projectcalico/libcalico/lib"
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"net"
 )
@@ -51,9 +52,15 @@ func main() {
 	// messages to the single writer thread.
 	toFelix := make(chan map[string]interface{})
 
+	dispatcher := store.NewDispatcher()
+	dispatcher.OnEndpointUpdate = func(key *libcalico.EndpointKey, endpoint *libcalico.Endpoint) {
+		fmt.Println("ENDPOINT UPDATE: ", key, endpoint)
+	}
+
 	// Get an etcd driver
 	felixCbs := felixCallbacks{
-		toFelix: toFelix,
+		toFelix:    toFelix,
+		dispatcher: dispatcher,
 	}
 	datastore, err := etcd.New(felixCbs, &store.DriverConfiguration{})
 
@@ -65,7 +72,8 @@ func main() {
 }
 
 type felixCallbacks struct {
-	toFelix chan<- map[string]interface{}
+	toFelix    chan<- map[string]interface{}
+	dispatcher *store.Dispatcher
 }
 
 func (cbs felixCallbacks) OnConfigLoaded(globalConfig map[string]string, hostConfig map[string]string) {
@@ -96,6 +104,7 @@ func (cbs felixCallbacks) OnStatusUpdated(status store.DriverStatus) {
 
 func (cbs felixCallbacks) OnKeysUpdated(updates []store.Update) {
 	for _, update := range updates {
+		cbs.dispatcher.DispatchUpdate(update)
 		var msg map[string]interface{}
 		if update.ValueOrNil != nil {
 			msg = map[string]interface{}{

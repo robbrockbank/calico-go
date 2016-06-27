@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Tigera Inc.
+// Copyright (c) 2016 Tigera, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,54 +62,56 @@ func NewDispatcher() *Dispatcher {
 }
 
 func (d Dispatcher) DispatchUpdate(update Update) {
+	log.Debug("Dispatching update ", update)
 	key := libcalico.ParseKey(update.Key)
 	if key == nil {
 		// Unknown key.
+		log.Debug("Unknown key ", update.Key)
 		return
 	}
 	switch key := key.(type) {
 	case libcalico.EndpointKey:
 		if update.ValueOrNil == nil {
-			d.OnEndpointDelete(key)
+			d.OnEndpointDelete(&key)
 		} else {
-			endpoint, err := libcalico.ParseEndpoint(key, []byte(*update.ValueOrNil))
+			endpoint, err := libcalico.ParseEndpoint(&key, []byte(*update.ValueOrNil))
 			if err != nil {
-				d.OnEndpointParseFailure(key, err)
+				d.OnEndpointParseFailure(&key, err)
 			} else {
-				d.OnEndpointUpdate(key, endpoint)
+				d.OnEndpointUpdate(&key, endpoint)
 			}
 		}
 	case libcalico.HostEndpointKey:
 		if update.ValueOrNil == nil {
-			d.OnHostEndpointDelete(key)
+			d.OnHostEndpointDelete(&key)
 		} else {
-			hostEndpoint, err := libcalico.ParseHostEndpoint(key, []byte(*update.ValueOrNil))
+			hostEndpoint, err := libcalico.ParseHostEndpoint(&key, []byte(*update.ValueOrNil))
 			if err != nil {
-				d.OnHostEndpointParseFailure(key, err)
+				d.OnHostEndpointParseFailure(&key, err)
 			} else {
-				d.OnHostEndpointUpdate(key, hostEndpoint)
+				d.OnHostEndpointUpdate(&key, hostEndpoint)
 			}
 		}
 	case libcalico.PolicyKey:
 		if update.ValueOrNil == nil {
-			d.OnPolicyDelete(key)
+			d.OnPolicyDelete(&key)
 		} else {
-			policy, err := libcalico.ParsePolicy(key, []byte(*update.ValueOrNil))
+			policy, err := libcalico.ParsePolicy(&key, []byte(*update.ValueOrNil))
 			if err != nil {
-				d.OnPolicyParseFailure(key, err)
+				d.OnPolicyParseFailure(&key, err)
 			} else {
-				d.OnPolicyUpdate(key, policy)
+				d.OnPolicyUpdate(&key, policy)
 			}
 		}
 	case libcalico.TierMetadataKey:
 		if update.ValueOrNil == nil {
-			d.OnTierMetadataDelete(key)
+			d.OnTierMetadataDelete(&key)
 		} else {
-			endpoint, err := libcalico.ParseTierMetadata(key, []byte(*update.ValueOrNil))
+			endpoint, err := libcalico.ParseTierMetadata(&key, []byte(*update.ValueOrNil))
 			if err != nil {
-				d.OnTierMetadataParseFailure(key, err)
+				d.OnTierMetadataParseFailure(&key, err)
 			} else {
-				d.OnTierMetadataUpdate(key, endpoint)
+				d.OnTierMetadataUpdate(&key, endpoint)
 			}
 		}
 	}

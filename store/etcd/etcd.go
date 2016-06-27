@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Tigera Inc.
+// Copyright (c) 2016 Tigera, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,14 +16,16 @@ package etcd
 
 import (
 	"fmt"
-	"github.com/projectcalico/calico-go/store"
 	"github.com/projectcalico/calico-go/hwm"
+	"github.com/projectcalico/calico-go/store"
 	"time"
 
 	"github.com/coreos/etcd/client"
+	"github.com/op/go-logging"
 	"golang.org/x/net/context"
-	"log"
 )
+
+var log = logging.MustGetLogger("store.etcd")
 
 func init() {
 	store.Register("etcd", New)
@@ -45,6 +47,7 @@ func (driver *etcdDriver) Start() {
 	// Start a background thread to read events from etcd.  It will
 	// queue events onto the etcdEvents channel.  If it drops out of sync,
 	// it will signal on the resyncIndex channel.
+	log.Info("Starting etcd driver")
 	etcdEvents := make(chan event, 20000)
 	resyncIndex := make(chan uint64, 5)
 	go driver.watchEtcd(etcdEvents, resyncIndex)

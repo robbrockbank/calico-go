@@ -1,38 +1,41 @@
-hash: c06ba02580d44169054226a5b0c3a0825e886bf33a0d41633f34e50a0ed60a3a
-updated: 2016-06-23T15:35:49.694579751+01:00
+hash: 8caff7145413fe80bd7662d3f9f845b483e42049418574b1eb6268852ade99eb
+updated: 2016-06-24T15:54:24.261700539+01:00
 imports:
 - name: github.com/coreos/etcd
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: a7189ef0736bd50a3f05f3a14659eb1444aaa7e7
   subpackages:
   - client
   - pkg/pathutil
   - pkg/types
 - name: github.com/docopt/docopt-go
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: 784ddc588536785e7299f7272f39101f7faccc3f
 - name: github.com/fvbock/trie
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: 1d40233c66bdef97a7d978cbe799531a6acf1ea6
 - name: github.com/golang/protobuf
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: 0c1f6d65b5a189c2250d10e71a5506f06f9fa0a0
   subpackages:
   - proto
 - name: github.com/onsi/gomega
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: 3e93f011213c200aadafcb19ed56eb718381cfbd
 - name: github.com/op/go-logging
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: 970db520ece77730c7e4724c61121037378659d9
 - name: github.com/projectcalico/libcalico
-  version: 78092b33bc627a3aef8978c880e7b6a020ac2617
+  version: 5e920ae3ba4336a801cf6f022cc7679215ef65a9
+  repo: git@github.com:fasaxc/libcalico.git
   subpackages:
   - lib
+- name: github.com/satori/go.uuid
+  version: 879c5887cd475cd7864858769793b2ceb0d44feb
 - name: github.com/ugorji/go
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: b94837a2404ab90efe9289e77a70694c355739cb
   subpackages:
   - codec
 - name: golang.org/x/net
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: bc3663df0ac92f928d419e31e0d2af22e683a5a2
   subpackages:
   - context
 - name: google.golang.org/appengine
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: 267c27e7492265b84fc6719503b14a1e17975d79
   subpackages:
   - datastore
   - internal
@@ -40,15 +43,16 @@ imports:
   - internal/app_identity
   - internal/modules
   - internal/base
+  - internal/log
   - internal/remote_api
 - name: gopkg.in/tchap/go-patricia.v2
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: 8304b1f670ec9603eb3eebcb3bd08e13a8a2630b
   subpackages:
   - patricia
 - name: gopkg.in/vmihailenco/msgpack.v2
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: e09fff0fb288c4ddaaf06cee47f386751b7229b7
   subpackages:
   - codes
 - name: gopkg.in/yaml.v2
-  version: 8c76df80b400f7c1c3c7486addc913812e4295a5
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 devImports: []
