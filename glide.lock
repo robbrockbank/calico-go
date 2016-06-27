@@ -1,8 +1,8 @@
-hash: 8caff7145413fe80bd7662d3f9f845b483e42049418574b1eb6268852ade99eb
-updated: 2016-06-24T15:54:24.261700539+01:00
+hash: 6f43d8aa96fc660b23b78e7a9781d1cb9e96fed27757cbcd9a2ebef4695273c8
+updated: 2016-06-27T16:33:30.027054682+01:00
 imports:
 - name: github.com/coreos/etcd
-  version: a7189ef0736bd50a3f05f3a14659eb1444aaa7e7
+  version: aab905f7ccd12733b16931953677bef7e8ce5400
   subpackages:
   - client
   - pkg/pathutil
@@ -16,12 +16,13 @@ imports:
   subpackages:
   - proto
 - name: github.com/onsi/gomega
-  version: 3e93f011213c200aadafcb19ed56eb718381cfbd
+  version: 0df7b7fdb38123c12a1f569f0affb2c2a7bd72cf
 - name: github.com/op/go-logging
   version: 970db520ece77730c7e4724c61121037378659d9
 - name: github.com/projectcalico/libcalico
-  version: 5e920ae3ba4336a801cf6f022cc7679215ef65a9
+  version: 47cac4305bb9eeea9cb4ada9f6e2e2ced7057ebc
   repo: git@github.com:fasaxc/libcalico.git
+  vcs: git
   subpackages:
   - lib
 - name: github.com/satori/go.uuid
@@ -31,7 +32,7 @@ imports:
   subpackages:
   - codec
 - name: golang.org/x/net
-  version: bc3663df0ac92f928d419e31e0d2af22e683a5a2
+  version: e445b19913b9d40fdbdfe19ac5e3d314aafd6f63
   subpackages:
   - context
 - name: google.golang.org/appengine
@@ -50,7 +51,7 @@ imports:
   subpackages:
   - patricia
 - name: gopkg.in/vmihailenco/msgpack.v2
-  version: e09fff0fb288c4ddaaf06cee47f386751b7229b7
+  version: 613c50bacd4fc31ec0fc541489863db3ed02274a
   subpackages:
   - codes
 - name: gopkg.in/yaml.v2
