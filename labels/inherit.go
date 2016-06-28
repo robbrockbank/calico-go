@@ -20,59 +20,64 @@ import (
 )
 
 type LabelInheritanceIndex interface {
-	UpdateSelector(id string, sel selector.Selector)
-	DeleteSelector(id string)
-	UpdateLabels(id string, labels map[string]string, parents []string)
-	DeleteLabels(id string)
-	UpdateParentLabels(id string, labels map[string]string)
-	DeleteParentLabels(id string)
+	UpdateSelector(id interface{}, sel selector.Selector)
+	DeleteSelector(id interface{})
+	UpdateLabels(id interface{}, labels map[string]string, parents []interface{})
+	DeleteLabels(id interface{})
+	UpdateParentLabels(id interface{}, labels map[string]string)
+	DeleteParentLabels(id interface{})
 }
 
 type labelInheritanceIndex struct {
 	index             Index
-	labelsByItemID    map[string]map[string]string
-	labelsByParentID  map[string]map[string]string
-	parentIDsByItemID map[string][]string
-	itemIDsByParentID multidict.StringToString
-	dirtyItemIDs      map[string]bool
+	labelsByItemID    map[interface{}]map[string]string
+	labelsByParentID  map[interface{}]map[string]string
+	parentIDsByItemID map[interface{}][]interface{}
+	itemIDsByParentID multidict.IfaceToIface
+	dirtyItemIDs      map[interface{}]bool
 }
 
 func NewInheritanceIndex(onMatchStarted, onMatchStopped MatchCallback) LabelInheritanceIndex {
 	index := NewIndex(onMatchStarted, onMatchStopped)
 	inheritIDx := labelInheritanceIndex{
 		index:             index,
-		labelsByItemID:    make(map[string]map[string]string),
-		labelsByParentID:  make(map[string]map[string]string),
-		parentIDsByItemID: make(map[string][]string),
-		itemIDsByParentID: multidict.NewStringToString(),
+		labelsByItemID:    make(map[interface{}]map[string]string),
+		labelsByParentID:  make(map[interface{}]map[string]string),
+		parentIDsByItemID: make(map[interface{}][]interface{}),
+		itemIDsByParentID: multidict.NewIfaceToIface(),
+		dirtyItemIDs:      make(map[interface{}]bool),
 	}
 	return &inheritIDx
 }
 
-func (idx labelInheritanceIndex) UpdateSelector(id string, sel selector.Selector) {
+func (idx *labelInheritanceIndex) UpdateSelector(id interface{}, sel selector.Selector) {
 	idx.index.UpdateSelector(id, sel)
 }
 
-func (idx labelInheritanceIndex) DeleteSelector(id string) {
+func (idx *labelInheritanceIndex) DeleteSelector(id interface{}) {
 	idx.index.DeleteSelector(id)
 }
 
-func (idx labelInheritanceIndex) UpdateLabels(id string, labels map[string]string, parents []string) {
+func (idx *labelInheritanceIndex) UpdateLabels(id interface{}, labels map[string]string, parents []interface{}) {
+	log.Debug("Inherit index updating labels for ", id)
+	log.Debug("Num dirty items ", len(idx.dirtyItemIDs), " items")
 	idx.labelsByItemID[id] = labels
 	idx.onItemParentsUpdate(id, parents)
 	idx.dirtyItemIDs[id] = true
 	idx.flushUpdates()
+	log.Debug("Num ending dirty items ", len(idx.dirtyItemIDs), " items")
 }
 
-func (idx labelInheritanceIndex) DeleteLabels(id string) {
+func (idx *labelInheritanceIndex) DeleteLabels(id interface{}) {
+	log.Debug("Inherit index deleting labels for ", id)
 	delete(idx.labelsByItemID, id)
-	var noParents []string
+	var noParents []interface{}
 	idx.onItemParentsUpdate(id, noParents)
 	idx.dirtyItemIDs[id] = true
 	idx.flushUpdates()
 }
 
-func (idx labelInheritanceIndex) onItemParentsUpdate(id string, parents []string) {
+func (idx *labelInheritanceIndex) onItemParentsUpdate(id interface{}, parents []interface{}) {
 	oldParents := idx.parentIDsByItemID[id]
 	for _, parent := range oldParents {
 		idx.itemIDsByParentID.Discard(parent, id)
@@ -87,25 +92,27 @@ func (idx labelInheritanceIndex) onItemParentsUpdate(id string, parents []string
 	}
 }
 
-func (idx labelInheritanceIndex) UpdateParentLabels(parentID string, labels map[string]string) {
+func (idx *labelInheritanceIndex) UpdateParentLabels(parentID interface{}, labels map[string]string) {
 	idx.labelsByParentID[parentID] = labels
 	idx.flushChildren(parentID)
 }
 
-func (idx labelInheritanceIndex) DeleteParentLabels(parentID string) {
+func (idx *labelInheritanceIndex) DeleteParentLabels(parentID interface{}) {
 	delete(idx.labelsByParentID, parentID)
 	idx.flushChildren(parentID)
 }
 
-func (idx labelInheritanceIndex) flushChildren(parentID string) {
-	idx.itemIDsByParentID.Iter(parentID, func(itemID string) {
+func (idx *labelInheritanceIndex) flushChildren(parentID interface{}) {
+	idx.itemIDsByParentID.Iter(parentID, func(itemID interface{}) {
+		log.Debug("Marking child ", itemID, " dirty")
 		idx.dirtyItemIDs[itemID] = true
 	})
 	idx.flushUpdates()
 }
 
-func (idx labelInheritanceIndex) flushUpdates() {
+func (idx *labelInheritanceIndex) flushUpdates() {
 	for itemID, _ := range idx.dirtyItemIDs {
+		log.Debugf("Flushing %#v", itemID)
 		itemLabels, ok := idx.labelsByItemID[itemID]
 		if !ok {
 			// Item deleted.
@@ -126,7 +133,7 @@ func (idx labelInheritanceIndex) flushUpdates() {
 			idx.index.UpdateLabels(itemID, combinedLabels)
 		}
 	}
-	idx.dirtyItemIDs = make(map[string]bool)
+	idx.dirtyItemIDs = make(map[interface{}]bool)
 }
 
 var _ LabelInheritanceIndex = (*labelInheritanceIndex)(nil)

@@ -22,22 +22,22 @@ import (
 var log = logging.MustGetLogger("labels")
 
 type Index interface {
-	UpdateSelector(id string, sel selector.Selector)
-	DeleteSelector(id string)
-	UpdateLabels(id string, labels map[string]string)
-	DeleteLabels(id string)
+	UpdateSelector(id interface{}, sel selector.Selector)
+	DeleteSelector(id interface{})
+	UpdateLabels(id interface{}, labels map[string]string)
+	DeleteLabels(id interface{})
 }
 
-type MatchCallback func(selId, labelId string)
+type MatchCallback func(selId, labelId interface{})
 
 type linearScanIndex struct {
 	// All known labels and selectors.
-	labelsById    map[string]map[string]string
-	selectorsById map[string]selector.Selector
+	labelsById    map[interface{}]map[string]string
+	selectorsById map[interface{}]selector.Selector
 
 	// Current matches.
-	selIdsByLabelId map[string]map[string]bool
-	labelIdsBySelId map[string]map[string]bool
+	selIdsByLabelId map[interface{}]map[interface{}]bool
+	labelIdsBySelId map[interface{}]map[interface{}]bool
 
 	// Callback functions
 	OnMatchStarted MatchCallback
@@ -45,17 +45,17 @@ type linearScanIndex struct {
 }
 
 func NewIndex(onMatchStarted, onMatchStopped MatchCallback) Index {
-	return linearScanIndex{
-		labelsById:      make(map[string]map[string]string),
-		selectorsById:   make(map[string]selector.Selector),
-		selIdsByLabelId: make(map[string]map[string]bool),
-		labelIdsBySelId: make(map[string]map[string]bool),
+	return &linearScanIndex{
+		labelsById:      make(map[interface{}]map[string]string),
+		selectorsById:   make(map[interface{}]selector.Selector),
+		selIdsByLabelId: make(map[interface{}]map[interface{}]bool),
+		labelIdsBySelId: make(map[interface{}]map[interface{}]bool),
 		OnMatchStarted:  onMatchStarted,
 		OnMatchStopped:  onMatchStopped,
 	}
 }
 
-func (idx linearScanIndex) UpdateSelector(id string, sel selector.Selector) {
+func (idx *linearScanIndex) UpdateSelector(id interface{}, sel selector.Selector) {
 	log.Debugf("Updating selector %v", id)
 	if sel == nil {
 		panic("Selector should not be nil")
@@ -64,10 +64,10 @@ func (idx linearScanIndex) UpdateSelector(id string, sel selector.Selector) {
 	idx.selectorsById[id] = sel
 }
 
-func (idx linearScanIndex) DeleteSelector(id string) {
+func (idx *linearScanIndex) DeleteSelector(id interface{}) {
 	log.Debugf("Deleting selector %v", id)
 	matchSet := idx.labelIdsBySelId[id]
-	matchSlice := make([]string, 0, len(matchSet))
+	matchSlice := make([]interface{}, 0, len(matchSet))
 	for labelId, _ := range matchSet {
 		matchSlice = append(matchSlice, labelId)
 	}
@@ -77,16 +77,16 @@ func (idx linearScanIndex) DeleteSelector(id string) {
 	delete(idx.selectorsById, id)
 }
 
-func (idx linearScanIndex) UpdateLabels(id string, labels map[string]string) {
+func (idx *linearScanIndex) UpdateLabels(id interface{}, labels map[string]string) {
 	log.Debugf("Updating labels for ID %v", id)
 	idx.scanAllSelectors(id, labels)
 	idx.labelsById[id] = labels
 }
 
-func (idx linearScanIndex) DeleteLabels(id string) {
+func (idx *linearScanIndex) DeleteLabels(id interface{}) {
 	log.Debugf("Deleting labels for %v", id)
 	matchSet := idx.selIdsByLabelId[id]
-	matchSlice := make([]string, 0, len(matchSet))
+	matchSlice := make([]interface{}, 0, len(matchSet))
 	for selId, _ := range matchSet {
 		matchSlice = append(matchSlice, selId)
 	}
@@ -96,7 +96,7 @@ func (idx linearScanIndex) DeleteLabels(id string) {
 	delete(idx.labelsById, id)
 }
 
-func (idx linearScanIndex) scanAllLabels(selId string, sel selector.Selector) {
+func (idx *linearScanIndex) scanAllLabels(selId interface{}, sel selector.Selector) {
 	log.Debugf("Scanning all (%v) labels against selector %v",
 		len(idx.labelsById), selId)
 	for labelId, labels := range idx.labelsById {
@@ -104,7 +104,7 @@ func (idx linearScanIndex) scanAllLabels(selId string, sel selector.Selector) {
 	}
 }
 
-func (idx linearScanIndex) scanAllSelectors(labelId string, labels map[string]string) {
+func (idx *linearScanIndex) scanAllSelectors(labelId interface{}, labels map[string]string) {
 	log.Debugf("Scanning all (%v) selectors against labels %v",
 		len(idx.selectorsById), labelId)
 	for selId, sel := range idx.selectorsById {
@@ -112,8 +112,8 @@ func (idx linearScanIndex) scanAllSelectors(labelId string, labels map[string]st
 	}
 }
 
-func (idx linearScanIndex) updateMatches(selId string, sel selector.Selector,
-	labelId string, labels map[string]string) {
+func (idx *linearScanIndex) updateMatches(selId interface{}, sel selector.Selector,
+	labelId interface{}, labels map[string]string) {
 	nowMatches := sel.Evaluate(labels)
 	if nowMatches {
 		idx.storeMatch(selId, labelId)
@@ -122,41 +122,44 @@ func (idx linearScanIndex) updateMatches(selId string, sel selector.Selector,
 	}
 }
 
-func (idx linearScanIndex) storeMatch(selId, labelId string) {
+func (idx *linearScanIndex) storeMatch(selId, labelId interface{}) {
 	previouslyMatched := idx.labelIdsBySelId[selId][labelId]
 	if !previouslyMatched {
 		log.Debugf("Selector %v now matches labels %v", selId, labelId)
-		if labelIds, ok := idx.labelIdsBySelId[selId]; ok {
-			labelIds[labelId] = true
-		} else {
-			idx.labelIdsBySelId[selId] = map[string]bool{
-				labelId: true,
-			}
+		labelIds, ok := idx.labelIdsBySelId[selId]
+		if !ok {
+			labelIds = make(map[interface{}]bool)
+			idx.labelIdsBySelId[selId] = labelIds
 		}
-		if selIds, ok := idx.selIdsByLabelId[labelId]; ok {
-			selIds[selId] = true
-		} else {
-			idx.selIdsByLabelId[labelId] = map[string]bool{
-				selId: true,
-			}
+		labelIds[labelId] = true
+
+		selIDs, ok := idx.selIdsByLabelId[labelId]
+		if !ok {
+			selIDs = make(map[interface{}]bool)
+			idx.selIdsByLabelId[labelId] = selIDs
 		}
+		selIDs[selId] = true
+
 		idx.OnMatchStarted(selId, labelId)
 	}
 }
 
-func (idx linearScanIndex) deleteMatch(selId, labelId string) {
+func (idx *linearScanIndex) deleteMatch(selId, labelId interface{}) {
 	previouslyMatched := idx.labelIdsBySelId[selId][labelId]
 	if previouslyMatched {
 		log.Debugf("Selector %v no longer matches labels %v",
 			selId, labelId)
+
 		delete(idx.labelIdsBySelId[selId], labelId)
 		if len(idx.labelIdsBySelId[selId]) == 0 {
 			delete(idx.labelIdsBySelId, selId)
 		}
+
 		delete(idx.selIdsByLabelId[labelId], selId)
 		if len(idx.selIdsByLabelId[labelId]) == 0 {
 			delete(idx.selIdsByLabelId, labelId)
 		}
+
 		idx.OnMatchStopped(selId, labelId)
 	}
 }

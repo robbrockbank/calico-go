@@ -56,3 +56,47 @@ func (s2s StringToString) Iter(key string, f func(value string)) {
 		f(value)
 	}
 }
+
+
+type IfaceToIface map[interface{}]map[interface{}]bool
+
+func NewIfaceToIface() IfaceToIface {
+	sToS := make(IfaceToIface)
+	return sToS
+}
+
+func (i2i IfaceToIface) Put(key, value interface{}) {
+	set, ok := i2i[key]
+	if !ok {
+		set = make(map[interface{}]bool)
+		i2i[key] = set
+	}
+	set[value] = true
+}
+
+func (i2i IfaceToIface) Discard(key, value interface{}) {
+	set, ok := i2i[key]
+	if !ok {
+		return
+	}
+	delete(set, value)
+	if len(set) == 0 {
+		delete(i2i, key)
+	}
+}
+
+func (i2i IfaceToIface) Contains(key, value interface{}) bool {
+	set, ok := i2i[key]
+	return ok && set[value]
+}
+
+func (i2i IfaceToIface) ContainsKey(key interface{}) bool {
+	_, ok := i2i[key]
+	return ok
+}
+
+func (i2i IfaceToIface) Iter(key interface{}, f func(value interface{})) {
+	for value, _ := range i2i[key] {
+		f(value)
+	}
+}

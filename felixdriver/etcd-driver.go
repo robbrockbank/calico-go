@@ -19,9 +19,9 @@ import (
 	"github.com/docopt/docopt-go"
 	"github.com/projectcalico/calico-go/store"
 	"github.com/projectcalico/calico-go/store/etcd"
-	"github.com/projectcalico/libcalico/lib"
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"net"
+	"github.com/projectcalico/calico-go/ipsets"
 )
 
 const usage = `etcd driver.
@@ -52,10 +52,11 @@ func main() {
 	// messages to the single writer thread.
 	toFelix := make(chan map[string]interface{})
 
+	ipsetResolver := ipsets.NewResolver()
+
 	dispatcher := store.NewDispatcher()
-	dispatcher.OnEndpointUpdate = func(key *libcalico.EndpointKey, endpoint *libcalico.Endpoint) {
-		fmt.Println("ENDPOINT UPDATE: ", key, endpoint)
-	}
+	dispatcher.OnEndpointUpdate = ipsetResolver.OnEndpointUpdate
+	dispatcher.OnPolicyUpdate = ipsetResolver.OnPolicyUpdate
 
 	// Get an etcd driver
 	felixCbs := felixCallbacks{

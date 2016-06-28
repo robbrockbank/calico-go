@@ -14,7 +14,45 @@
 
 package ipsets
 
+import (
+	"github.com/projectcalico/libcalico/lib"
+	"github.com/op/go-logging"
+	"github.com/projectcalico/calico-go/labels"
+	"github.com/projectcalico/calico-go/labels/selectors"
+)
+
+var log = logging.MustGetLogger("ipsets")
+
 type Resolver struct {
+	labelIdx labels.LabelInheritanceIndex
 }
 
-func (res Resolver) OnEndpointUpdate()
+func NewResolver() *Resolver {
+	resolver := Resolver{}
+	resolver.labelIdx = labels.NewInheritanceIndex(
+		resolver.onMatchStarted, resolver.onMatchStopped)
+	return &resolver
+}
+
+func (res Resolver) onMatchStarted(selId, labelId interface{}) {
+	log.Infof("Labels %v now match selector %v", labelId, selId)
+}
+
+func (res Resolver) onMatchStopped(selId, labelId interface{}) {
+	log.Infof("Labels %v no longer match selector %v", labelId, selId)
+}
+
+func (res Resolver) OnEndpointUpdate(key *libcalico.EndpointKey, endpoint *libcalico.Endpoint) {
+	log.Infof("Endpoint %v updated", key)
+	res.labelIdx.UpdateLabels(*key, endpoint.Labels, make([]interface{}, 0))
+}
+
+func (res Resolver) OnPolicyUpdate(key *libcalico.PolicyKey, policy *libcalico.Policy) {
+	log.Infof("Policy %v updated", key)
+	sel, err := selector.Parse(policy.Selector)
+	if err != nil {
+		// FIXME validate selectors earlier
+		panic("Invalid selector")
+	}
+	res.labelIdx.UpdateSelector(*key, sel)
+}

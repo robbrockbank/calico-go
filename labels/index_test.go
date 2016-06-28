@@ -20,13 +20,26 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/projectcalico/calico-go/labels/selectors"
+	"github.com/projectcalico/libcalico/lib"
 )
 
 type update struct {
 	op      string
-	labelId string
-	selId   string
+	labelId  interface{}
+	selId    interface{}
 }
+
+var _ = Describe("Keys", func() {
+	It("should work as a map key", func() {
+		key1 := libcalico.ParseKey("/calico/v1/policy/tier/tier1/policy/policy1")
+		key2 := libcalico.ParseKey("calico/v1/policy/tier/tier1/policy/policy1")
+		key3 := libcalico.ParseKey("/calico/v1/policy/tier/tier1/policy/policy2")
+		m := make(map[interface{}]bool)
+		m[key1] = true
+		Expect(m[key2]).To(BeTrue())
+		Expect(m[key3]).To(BeFalse())
+	})
+})
 
 var _ = Describe("Index", func() {
 	var (
@@ -38,13 +51,13 @@ var _ = Describe("Index", func() {
 		err     error
 	)
 
-	onMatchStart := func(selId, labelId string) {
+	onMatchStart := func(selId, labelId interface{}) {
 		updates = append(updates,
 			update{op: "start",
 				labelId: labelId,
 				selId:   selId})
 	}
-	onMatchStop := func(selId, labelId string) {
+	onMatchStop := func(selId, labelId  interface{}) {
 		updates = append(updates,
 			update{op: "stop",
 				labelId: labelId,
