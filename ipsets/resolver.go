@@ -25,34 +25,162 @@ var log = logging.MustGetLogger("ipsets")
 
 type Resolver struct {
 	labelIdx labels.LabelInheritanceIndex
+
+	activeSelCalc *ActiveSelectorCalculator
 }
 
 func NewResolver() *Resolver {
 	resolver := Resolver{}
 	resolver.labelIdx = labels.NewInheritanceIndex(
 		resolver.onMatchStarted, resolver.onMatchStopped)
+	resolver.activeSelCalc = NewActiveSelectorCalculator()
+	resolver.activeSelCalc.OnSelectorActive = resolver.onSelectorActive
+	resolver.activeSelCalc.OnSelectorInactive = resolver.onSelectorInactive
 	return &resolver
 }
 
-func (res Resolver) onMatchStarted(selId, labelId interface{}) {
+func (res *Resolver) onMatchStarted(selId, labelId interface{}) {
 	log.Infof("Labels %v now match selector %v", labelId, selId)
 }
 
-func (res Resolver) onMatchStopped(selId, labelId interface{}) {
+func (res *Resolver) onMatchStopped(selId, labelId interface{}) {
 	log.Infof("Labels %v no longer match selector %v", labelId, selId)
 }
 
-func (res Resolver) OnEndpointUpdate(key *libcalico.EndpointKey, endpoint *libcalico.Endpoint) {
+func (res *Resolver) OnEndpointUpdate(key libcalico.EndpointKey, endpoint *libcalico.Endpoint) {
 	log.Infof("Endpoint %v updated", key)
-	res.labelIdx.UpdateLabels(*key, endpoint.Labels, make([]interface{}, 0))
+	res.labelIdx.UpdateLabels(key, endpoint.Labels, make([]interface{}, 0))
 }
 
-func (res Resolver) OnPolicyUpdate(key *libcalico.PolicyKey, policy *libcalico.Policy) {
+func (res *Resolver) OnPolicyUpdate(key libcalico.PolicyKey, policy *libcalico.Policy) {
 	log.Infof("Policy %v updated", key)
-	sel, err := selector.Parse(policy.Selector)
-	if err != nil {
-		// FIXME validate selectors earlier
-		panic("Invalid selector")
+	res.activeSelCalc.UpdatePolicy(key, policy)
+}
+
+func (res *Resolver) OnProfileUpdate(key libcalico.ProfileKey, policy *libcalico.Profile) {
+	log.Infof("Profile %v updated", key)
+	res.activeSelCalc.UpdateProfile(key, policy)
+}
+
+func (res *Resolver) onSelectorActive(sel selector.Selector) {
+	log.Infof("Selector %v now active", sel)
+	res.labelIdx.UpdateSelector(sel.UniqueId(), sel)
+}
+
+func (res *Resolver) onSelectorInactive(sel selector.Selector) {
+	log.Infof("Selector %v now inactive", sel)
+	res.labelIdx.DeleteSelector(sel.UniqueId())
+}
+
+// ActiveSelectorCalculator calculates the active set of selectors from the current set of policies/profiles.
+// It generates events for selectors becoming active/inactive.
+type ActiveSelectorCalculator struct {
+	// selectorsByUid maps from a selector's UID to the selector itself.
+	selectorsByUid selByUid
+	// activeUidsByResource maps from policy or profile ID to "set" of selector UIDs
+	activeUidsByResource map[libcalico.Key]map[string]bool
+	// activeResourcesByUid maps from selector UID back to the "set" of resources using it.
+	activeResourcesByUid map[string]map[libcalico.Key]bool
+
+	OnSelectorActive func(selector selector.Selector)
+	OnSelectorInactive func(selector selector.Selector)
+}
+
+func NewActiveSelectorCalculator() *ActiveSelectorCalculator {
+	calc := &ActiveSelectorCalculator{
+		selectorsByUid: make(selByUid),
+		activeUidsByResource: make(map[libcalico.Key]map[string]bool),
+		activeResourcesByUid: make(map[string]map[libcalico.Key]bool),
 	}
-	res.labelIdx.UpdateSelector(*key, sel)
+	return calc
+}
+
+func (calc *ActiveSelectorCalculator) UpdatePolicy(key libcalico.PolicyKey, policy *libcalico.Policy) {
+	calc.updateResource(key, policy.Inbound, policy.Outbound)
+}
+
+func (calc *ActiveSelectorCalculator) UpdateProfile(key libcalico.ProfileKey, profile *libcalico.Profile) {
+	calc.updateResource(key, profile.Rules.Inbound, profile.Rules.Outbound)
+}
+
+func (calc *ActiveSelectorCalculator) updateResource(key libcalico.Key, inbound, outbound []libcalico.Rule) {
+	// Extract all the new selectors.
+	currentSelsByUid := make(selByUid)
+	currentSelsByUid.addSelectorsFromRules(inbound)
+	currentSelsByUid.addSelectorsFromRules(outbound)
+
+	// Find the set of old selectors.
+	knownUids, knownUidsPresent := calc.activeUidsByResource[key]
+
+	// Figure out which selectors are new.
+	addedUids := make(map[string]bool)
+	for key, _ := range currentSelsByUid {
+		if !knownUids[key] {
+			addedUids[key] = true
+		}
+	}
+
+	// Figure out which selectors are no-longer in use.
+	removedUids := make(map[string]bool)
+	for key, _ := range knownUids {
+		if _, ok := currentSelsByUid[key]; !ok {
+			removedUids[key] = true
+		}
+	}
+
+	// Add the new into the index, triggering events as we discover
+	// newly-active selectors.
+	if len(addedUids) > 0 {
+		if !knownUidsPresent {
+			knownUids = make(map[string]bool)
+			calc.activeUidsByResource[key] = knownUids
+		}
+		for uid, _ := range addedUids {
+			knownUids[uid] = true
+			resources, ok := calc.activeResourcesByUid[uid]
+			if !ok {
+				resources = make(map[libcalico.Key]bool)
+				calc.activeResourcesByUid[uid] = resources
+				sel := currentSelsByUid[uid]
+				calc.selectorsByUid[uid] = sel
+				// This selector just became active, trigger event.
+				calc.OnSelectorActive(sel)
+			}
+			resources[key] = true
+		}
+	}
+
+	// And remove the old, trigerring events as we clean up unused
+	// selectors.
+	for uid, _ := range removedUids {
+		delete(knownUids, uid)
+		resources := calc.activeResourcesByUid[uid]
+		delete(resources, key)
+		if len(resources) == 0 {
+			delete(calc.activeResourcesByUid, uid)
+			sel := calc.selectorsByUid[uid]
+			delete(calc.selectorsByUid, uid)
+			// This selector just became inactive, trigger event.
+			calc.OnSelectorInactive(sel)
+		}
+	}
+}
+
+// selByUid is an augmented map with methods to assist in extracting rules from policies.
+type selByUid map[string]selector.Selector
+
+func (sbu selByUid) addSelectorsFromRules(rules []libcalico.Rule) {
+	for _, rule := range rules {
+		selStrPs := []*string {rule.SrcSelector, rule.DstSelector, rule.NotSrcSelector, rule.NotDstSelector}
+		for _, selStrP := range selStrPs {
+			if selStrP != nil {
+				sel, err := selector.Parse(*selStrP)
+				if err != nil {
+					panic("FIXME: Handle bad selector")
+				}
+				sbu[sel.UniqueId()] = sel
+			}
+		}
+
+	}
 }
