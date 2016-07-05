@@ -46,7 +46,7 @@ func (calc *IpsetCalculator) OnMatchStarted(key libcalico.Key, selId string) {
 }
 
 func (calc *IpsetCalculator) addMatchToIndex(selID string, key libcalico.Key, ips []string) {
-	log.Debugf("Selector %v now matches %v via %v", selID, ips, key)
+	log.Debugf("Selector %v now matches IPs %v via %v", selID, ips, key)
 	ipToKeys, ok := calc.selIdToIPToKey[selID]
 	if !ok {
 		ipToKeys = make(map[string]map[libcalico.Key]bool)
@@ -75,22 +75,24 @@ func (calc *IpsetCalculator) OnMatchStopped(key libcalico.Key, selId string) {
 	calc.removeMatchFromIndex(selId, key, ips)
 }
 
-func (calc *IpsetCalculator) removeMatchFromIndex(selId string, key libcalico.Key, ips []string) {
-	ipToKeys := calc.selIdToIPToKey[selId]
+func (calc *IpsetCalculator) removeMatchFromIndex(selID string, key libcalico.Key, ips []string) {
+	log.Debugf("Selector %v no longer matches IPs %v via %v", selID, ips, key)
+	ipToKeys := calc.selIdToIPToKey[selID]
 	for _, ip := range ips {
 		keys := ipToKeys[ip]
 		delete(keys, key)
 		if len(keys) == 0 {
-			calc.OnIPRemoved(selId, ip)
+			calc.OnIPRemoved(selID, ip)
 			delete(ipToKeys, ip)
 			if len(ipToKeys) == 0 {
-				delete(calc.selIdToIPToKey, selId)
+				delete(calc.selIdToIPToKey, selID)
 			}
 		}
 	}
 }
 
 func (calc *IpsetCalculator) OnEndpointUpdate(endpointKey libcalico.Key, ips []string) {
+	log.Debugf("Endpoint %v IPs updated to %v", endpointKey, ips)
 	oldIPs := calc.keyToIPs[endpointKey]
 	if len(ips) == 0 {
 		delete(calc.keyToIPs, endpointKey)
@@ -119,7 +121,9 @@ func (calc *IpsetCalculator) OnEndpointUpdate(endpointKey libcalico.Key, ips []s
 		}
 	}
 
-	for selID, _ := range calc.keyToMatchingSelIDs[endpointKey] {
+	matchingSels := calc.keyToMatchingSelIDs[endpointKey]
+	log.Debugf("Updating IPs in matching selectors: %v", matchingSels)
+	for selID, _ := range matchingSels {
 		calc.addMatchToIndex(selID, endpointKey, addedIPs)
 		calc.removeMatchFromIndex(selID, endpointKey, removedIPs)
 	}

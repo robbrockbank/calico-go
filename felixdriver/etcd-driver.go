@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"github.com/docopt/docopt-go"
+	"github.com/op/go-logging"
 	"github.com/projectcalico/calico-go/ipsets"
 	"github.com/projectcalico/calico-go/store"
 	"github.com/projectcalico/calico-go/store/etcd"
@@ -36,6 +37,8 @@ func main() {
 		panic(usage)
 	}
 	felixSckAddr := arguments["<felix-socket>"].(string)
+
+	logging.SetFormatter(logging.GlogFormatter)
 
 	// Connect to Felix.
 	felixConn, err := net.Dial("unix", felixSckAddr)

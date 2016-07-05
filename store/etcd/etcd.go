@@ -191,16 +191,24 @@ func (driver *etcdDriver) watchEtcd(etcdEvents chan<- event, resyncIndex chan<- 
 	for {
 		resp, err := watcher.Next(context.Background())
 		if err != nil {
-			errCode := err.(client.Error).Code
-			if errCode == client.ErrorCodeWatcherCleared ||
-				errCode == client.ErrorCodeEventIndexCleared {
-				println("Lost sync with etcd, restarting watcher")
-				watcher = kapi.Watcher("/calico/v1",
-					&watcherOpts)
-				lostSync = true
-			} else {
-				fmt.Printf("Error from etcd %v\n", err)
+			switch err := err.(type) {
+			case client.Error:
+				errCode := err.Code
+				if errCode == client.ErrorCodeWatcherCleared ||
+					errCode == client.ErrorCodeEventIndexCleared {
+					println("Lost sync with etcd, restarting watcher")
+					watcher = kapi.Watcher("/calico/v1",
+						&watcherOpts)
+					lostSync = true
+				} else {
+					fmt.Printf("Error from etcd %v\n", err)
+					time.Sleep(1 * time.Second)
+				}
+			case *client.ClusterError:
+				fmt.Printf("Cluster error from etcd %v\n", err)
 				time.Sleep(1 * time.Second)
+			default:
+				panic(err)
 			}
 		} else {
 			var actionType uint8

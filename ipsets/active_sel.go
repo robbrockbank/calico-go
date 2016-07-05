@@ -57,20 +57,23 @@ func (calc *ActiveSelectorCalculator) updateResource(key libcalico.Key, inbound,
 
 	// Find the set of old selectors.
 	knownUids, knownUidsPresent := calc.activeUidsByResource[key]
+	log.Debugf("Known UIDs for %v: %v", key, knownUids)
 
 	// Figure out which selectors are new.
 	addedUids := make(map[string]bool)
-	for key, _ := range currentSelsByUid {
-		if !knownUids[key] {
-			addedUids[key] = true
+	for uid, _ := range currentSelsByUid {
+		if !knownUids[uid] {
+			log.Debugf("Added UID: %v", uid)
+			addedUids[uid] = true
 		}
 	}
 
 	// Figure out which selectors are no-longer in use.
 	removedUids := make(map[string]bool)
-	for key, _ := range knownUids {
-		if _, ok := currentSelsByUid[key]; !ok {
-			removedUids[key] = true
+	for uid, _ := range knownUids {
+		if _, ok := currentSelsByUid[uid]; !ok {
+			log.Debugf("Removed UID: %v", uid)
+			removedUids[uid] = true
 		}
 	}
 
@@ -85,6 +88,7 @@ func (calc *ActiveSelectorCalculator) updateResource(key libcalico.Key, inbound,
 			knownUids[uid] = true
 			resources, ok := calc.activeResourcesByUid[uid]
 			if !ok {
+				log.Debugf("Selector became active: %v", uid)
 				resources = make(map[libcalico.Key]bool)
 				calc.activeResourcesByUid[uid] = resources
 				sel := currentSelsByUid[uid]
@@ -103,6 +107,7 @@ func (calc *ActiveSelectorCalculator) updateResource(key libcalico.Key, inbound,
 		resources := calc.activeResourcesByUid[uid]
 		delete(resources, key)
 		if len(resources) == 0 {
+			log.Debugf("Selector became inactive: %v", uid)
 			delete(calc.activeResourcesByUid, uid)
 			sel := calc.selectorsByUid[uid]
 			delete(calc.selectorsByUid, uid)
