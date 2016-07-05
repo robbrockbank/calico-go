@@ -26,14 +26,29 @@ var log = logging.MustGetLogger("ipsets")
 // Resolver processes datastore updates to calculate the current set of active ipsets.
 // It generates events for ipsets being added/removed and IPs being added/removed from them.
 type Resolver struct {
-	labelIdx labels.LabelInheritanceIndex
-
+	// ActiveSelectorCalculator scans the active policies/profiles for
+	// selectors...
 	activeSelCalc *ActiveSelectorCalculator
-	ipsetCalc     *IpsetCalculator
+	// ...which we pass to the label inheritance index to calculate the
+	// endpoints that match...
+	labelIdx labels.LabelInheritanceIndex
+	// ...which we pass to the ipset calculator to merge the IPs from
+	// different endpoints.
+	ipsetCalc *IpsetCalculator
+
+	OnSelectorAdded   func(selID string)
+	OnIPAdded         func(selID, ip string)
+	OnIPRemoved       func(selID, ip string)
+	OnSelectorRemoved func(selID string)
 }
 
 func NewResolver() *Resolver {
-	resolver := &Resolver{}
+	resolver := &Resolver{
+		OnSelectorAdded:   func(selID string) {},
+		OnIPAdded:         func(selID, ip string) {},
+		OnIPRemoved:       func(selID, ip string) {},
+		OnSelectorRemoved: func(selID string) {},
+	}
 	resolver.activeSelCalc = NewActiveSelectorCalculator()
 	resolver.activeSelCalc.OnSelectorActive = resolver.onSelectorActive
 	resolver.activeSelCalc.OnSelectorInactive = resolver.onSelectorInactive
@@ -77,11 +92,13 @@ func (res *Resolver) OnProfileUpdate(key libcalico.ProfileKey, policy *libcalico
 // onIPAdded is called when an IP is now present in an active selector.
 func (res *Resolver) onIPAdded(selID, ip string) {
 	log.Infof("IP set %v now contains %v", selID, ip)
+	res.OnIPAdded(selID, ip)
 }
 
 // onIPAdded is called when an IP is no longer present in a selector.
 func (res *Resolver) onIPRemoved(selID, ip string) {
 	log.Infof("IP set %v no longer contains %v", selID, ip)
+	res.OnIPRemoved(selID, ip)
 }
 
 // LabelIndex callbacks:
@@ -104,6 +121,7 @@ func (res *Resolver) onMatchStopped(selId, labelId interface{}) {
 // It adds the selector to the label index and starts tracking it.
 func (res *Resolver) onSelectorActive(sel selector.Selector) {
 	log.Infof("Selector %v now active", sel)
+	res.OnSelectorAdded(sel.UniqueId())
 	res.labelIdx.UpdateSelector(sel.UniqueId(), sel)
 }
 
@@ -112,4 +130,5 @@ func (res *Resolver) onSelectorActive(sel selector.Selector) {
 func (res *Resolver) onSelectorInactive(sel selector.Selector) {
 	log.Infof("Selector %v now inactive", sel)
 	res.labelIdx.DeleteSelector(sel.UniqueId())
+	res.OnSelectorRemoved(sel.UniqueId())
 }

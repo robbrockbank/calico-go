@@ -17,11 +17,11 @@ package main
 import (
 	"fmt"
 	"github.com/docopt/docopt-go"
+	"github.com/projectcalico/calico-go/ipsets"
 	"github.com/projectcalico/calico-go/store"
 	"github.com/projectcalico/calico-go/store/etcd"
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"net"
-	"github.com/projectcalico/calico-go/ipsets"
 )
 
 const usage = `etcd driver.
@@ -57,13 +57,20 @@ func main() {
 	dispatcher := store.NewDispatcher()
 	dispatcher.OnEndpointUpdate = ipsetResolver.OnEndpointUpdate
 	dispatcher.OnPolicyUpdate = ipsetResolver.OnPolicyUpdate
+	// TODO: Profile update
 
 	// Get an etcd driver
-	felixCbs := felixCallbacks{
+	felixCbs := &felixCallbacks{
 		toFelix:    toFelix,
 		dispatcher: dispatcher,
 	}
 	datastore, err := etcd.New(felixCbs, &store.DriverConfiguration{})
+
+	// TODO callback functions or callback interface?
+	ipsetResolver.OnSelectorAdded = felixCbs.onSelectorAdded
+	ipsetResolver.OnSelectorRemoved = felixCbs.onSelectorRemoved
+	ipsetResolver.OnIPAdded = felixCbs.onIPAddedToSelector
+	ipsetResolver.OnIPRemoved = felixCbs.onIPRemovedFromSelector
 
 	// Start background thread to read messages from Felix.
 	go readMessagesFromFelix(felixDecoder, datastore)
@@ -77,7 +84,40 @@ type felixCallbacks struct {
 	dispatcher *store.Dispatcher
 }
 
-func (cbs felixCallbacks) OnConfigLoaded(globalConfig map[string]string, hostConfig map[string]string) {
+func (cbs *felixCallbacks) onSelectorAdded(selID string) {
+	msg := map[string]interface{}{
+		"type":   "sel_added",
+		"sel_id": selID,
+	}
+	cbs.toFelix <- msg
+}
+
+func (cbs *felixCallbacks) onSelectorRemoved(selID string) {
+	msg := map[string]interface{}{
+		"type":   "sel_removed",
+		"sel_id": selID,
+	}
+	cbs.toFelix <- msg
+}
+
+func (cbs *felixCallbacks) onIPAddedToSelector(selID string, ip string) {
+	msg := map[string]interface{}{
+		"type":   "ip_added",
+		"sel_id": selID,
+		"ip":     ip,
+	}
+	cbs.toFelix <- msg
+}
+func (cbs *felixCallbacks) onIPRemovedFromSelector(selID string, ip string) {
+	msg := map[string]interface{}{
+		"type":   "ip_removed",
+		"sel_id": selID,
+		"ip":     ip,
+	}
+	cbs.toFelix <- msg
+}
+
+func (cbs *felixCallbacks) OnConfigLoaded(globalConfig map[string]string, hostConfig map[string]string) {
 	msg := map[string]interface{}{
 		"type":   "config_loaded",
 		"global": globalConfig,
@@ -86,7 +126,7 @@ func (cbs felixCallbacks) OnConfigLoaded(globalConfig map[string]string, hostCon
 	cbs.toFelix <- msg
 }
 
-func (cbs felixCallbacks) OnStatusUpdated(status store.DriverStatus) {
+func (cbs *felixCallbacks) OnStatusUpdated(status store.DriverStatus) {
 	statusString := "unknown"
 	switch status {
 	case store.WaitForDatastore:
@@ -103,7 +143,7 @@ func (cbs felixCallbacks) OnStatusUpdated(status store.DriverStatus) {
 	cbs.toFelix <- msg
 }
 
-func (cbs felixCallbacks) OnKeysUpdated(updates []store.Update) {
+func (cbs *felixCallbacks) OnKeysUpdated(updates []store.Update) {
 	for _, update := range updates {
 		cbs.dispatcher.DispatchUpdate(update)
 		var msg map[string]interface{}
@@ -124,7 +164,7 @@ func (cbs felixCallbacks) OnKeysUpdated(updates []store.Update) {
 	}
 }
 
-func (cbs felixCallbacks) OnKeyDeleted(key string) {
+func (cbs *felixCallbacks) OnKeyDeleted(key string) {
 	msg := map[string]interface{}{
 		"type": "u",
 		"k":    key,

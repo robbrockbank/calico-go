@@ -57,7 +57,6 @@ func (s2s StringToString) Iter(key string, f func(value string)) {
 	}
 }
 
-
 type IfaceToIface map[interface{}]map[interface{}]bool
 
 func NewIfaceToIface() IfaceToIface {

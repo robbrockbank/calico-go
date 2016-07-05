@@ -25,8 +25,8 @@ import (
 
 type update struct {
 	op      string
-	labelId  interface{}
-	selId    interface{}
+	labelId interface{}
+	selId   interface{}
 }
 
 var _ = Describe("Keys", func() {
@@ -57,7 +57,7 @@ var _ = Describe("Index", func() {
 				labelId: labelId,
 				selId:   selId})
 	}
-	onMatchStop := func(selId, labelId  interface{}) {
+	onMatchStop := func(selId, labelId interface{}) {
 		updates = append(updates,
 			update{op: "stop",
 				labelId: labelId,
