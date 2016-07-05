@@ -23,6 +23,8 @@ import (
 
 var log = logging.MustGetLogger("ipsets")
 
+// Resolver processes datastore updates to calculate the current set of active ipsets.
+// It generates events for ipsets being added/removed and IPs being added/removed from them.
 type Resolver struct {
 	labelIdx labels.LabelInheritanceIndex
 
@@ -46,273 +48,68 @@ func NewResolver() *Resolver {
 	return resolver
 }
 
+// Datastore callbacks:
+
+// OnEndpointUpdate is called when we get an endpoint update from the datastore.
+// If fans out the update to the ipset calculator and the label index.
 func (res *Resolver) OnEndpointUpdate(key libcalico.EndpointKey, endpoint *libcalico.Endpoint) {
 	log.Infof("Endpoint %v updated", key)
 	res.ipsetCalc.OnEndpointUpdate(key, endpoint.IPv4Nets)
 	res.labelIdx.UpdateLabels(key, endpoint.Labels, make([]interface{}, 0))
 }
 
+// OnPolicyUpdate is called when we get a policy update from the datastore.
+// It passes through to the ActiveSetCalculator, which extracts the active ipsets from its rules.
 func (res *Resolver) OnPolicyUpdate(key libcalico.PolicyKey, policy *libcalico.Policy) {
 	log.Infof("Policy %v updated", key)
 	res.activeSelCalc.UpdatePolicy(key, policy)
 }
 
+// OnProfileUpdate is called when we get a policy update from the datastore.
+// It passes through to the ActiveSetCalculator, which extracts the active ipsets from its rules.
 func (res *Resolver) OnProfileUpdate(key libcalico.ProfileKey, policy *libcalico.Profile) {
 	log.Infof("Profile %v updated", key)
 	res.activeSelCalc.UpdateProfile(key, policy)
 }
 
+// IpsetCalculator callbacks:
+
+// onIPAdded is called when an IP is now present in an active selector.
 func (res *Resolver) onIPAdded(selID, ip string) {
 	log.Infof("IP set %v now contains %v", selID, ip)
 }
 
+// onIPAdded is called when an IP is no longer present in a selector.
 func (res *Resolver) onIPRemoved(selID, ip string) {
 	log.Infof("IP set %v no longer contains %v", selID, ip)
 }
 
+// LabelIndex callbacks:
+
+// onMatchStarted is called when an endpoint starts matching an active selector.
 func (res *Resolver) onMatchStarted(selId, labelId interface{}) {
 	log.Infof("Endpoint %v now matches selector %v", labelId, selId)
 	res.ipsetCalc.OnMatchStarted(labelId.(libcalico.Key), selId.(string))
 }
 
+// onMatchStopped is called when an endpoint stops matching an active selector.
 func (res *Resolver) onMatchStopped(selId, labelId interface{}) {
 	log.Infof("Endpoint %v no longer matches selector %v", labelId, selId)
 	res.ipsetCalc.OnMatchStopped(labelId.(libcalico.Key), selId.(string))
 }
 
+// ActiveSelectorCalculator callbacks:
+
+// onSelectorActive is called when a selector starts being used in a rule.
+// It adds the selector to the label index and starts tracking it.
 func (res *Resolver) onSelectorActive(sel selector.Selector) {
 	log.Infof("Selector %v now active", sel)
 	res.labelIdx.UpdateSelector(sel.UniqueId(), sel)
 }
 
+// onSelectorActive is called when a selector stops being used in a rule.
+// It removes the selector to the label index and stops tracking it.
 func (res *Resolver) onSelectorInactive(sel selector.Selector) {
 	log.Infof("Selector %v now inactive", sel)
 	res.labelIdx.DeleteSelector(sel.UniqueId())
-}
-
-type IpsetCalculator struct {
-	keyToIPs            map[libcalico.Key][]string
-	keyToMatchingSelIDs map[libcalico.Key]map[string]bool
-	selIdToIPToKey      map[string]map[string]map[libcalico.Key]bool
-
-	OnIPAdded   func(selID string, ip string)
-	OnIPRemoved func(selID string, ip string)
-}
-
-func NewIpsetCalculator() *IpsetCalculator {
-	calc := &IpsetCalculator{
-		keyToIPs:            make(map[libcalico.Key][]string),
-		keyToMatchingSelIDs: make(map[libcalico.Key]map[string]bool),
-		selIdToIPToKey:      make(map[string]map[string]map[libcalico.Key]bool),
-	}
-	return calc
-}
-
-func (calc *IpsetCalculator) OnMatchStarted(key libcalico.Key, selId string) {
-	matchingIDs, ok := calc.keyToMatchingSelIDs[key]
-	if !ok {
-		matchingIDs = make(map[string]bool)
-		calc.keyToMatchingSelIDs[key] = matchingIDs
-	}
-	matchingIDs[selId] = true
-
-	ips := calc.keyToIPs[key]
-	calc.addMatchToIndex(selId, key, ips)
-}
-
-func (calc *IpsetCalculator) addMatchToIndex(selID string, key libcalico.Key, ips []string) {
-	log.Debugf("Selector %v now matches %v via %v", selID, ips, key)
-	ipToKeys, ok := calc.selIdToIPToKey[selID]
-	if !ok {
-		ipToKeys = make(map[string]map[libcalico.Key]bool)
-		calc.selIdToIPToKey[selID] = ipToKeys
-	}
-
-	for _, ip := range ips {
-		keys, ok := ipToKeys[ip]
-		if !ok {
-			keys = make(map[libcalico.Key]bool)
-			ipToKeys[ip] = keys
-			calc.OnIPAdded(selID, ip)
-		}
-		keys[key] = true
-	}
-}
-
-func (calc *IpsetCalculator) OnMatchStopped(key libcalico.Key, selId string) {
-	matchingIDs := calc.keyToMatchingSelIDs[key]
-	delete(matchingIDs, selId)
-	if len(matchingIDs) == 0 {
-		delete(calc.keyToMatchingSelIDs, key)
-	}
-
-	ips := calc.keyToIPs[key]
-	calc.removeMatchFromIndex(selId, key, ips)
-}
-
-func (calc *IpsetCalculator) removeMatchFromIndex(selId string, key libcalico.Key, ips []string) {
-	ipToKeys := calc.selIdToIPToKey[selId]
-	for _, ip := range ips {
-		keys := ipToKeys[ip]
-		delete(keys, key)
-		if len(keys) == 0 {
-			calc.OnIPRemoved(selId, ip)
-			delete(ipToKeys, ip)
-			if len(ipToKeys) == 0 {
-				delete(calc.selIdToIPToKey, selId)
-			}
-		}
-	}
-}
-
-func (calc *IpsetCalculator) OnEndpointUpdate(endpointKey libcalico.Key, ips []string) {
-	oldIPs := calc.keyToIPs[endpointKey]
-	if len(ips) == 0 {
-		delete(calc.keyToIPs, endpointKey)
-	} else {
-		calc.keyToIPs[endpointKey] = ips
-	}
-
-	oldIPsSet := make(map[string]bool)
-	for _, ip := range oldIPs {
-		oldIPsSet[ip] = true
-	}
-
-	addedIPs := make([]string, 0)
-	currentIPs := make(map[string]bool)
-	for _, ip := range ips {
-		if !oldIPsSet[ip] {
-			addedIPs = append(addedIPs, ip)
-		}
-		currentIPs[ip] = true
-	}
-
-	removedIPs := make([]string, 0)
-	for _, ip := range oldIPs {
-		if !currentIPs[ip] {
-			removedIPs = append(removedIPs, ip)
-		}
-	}
-
-	for selID, _ := range calc.keyToMatchingSelIDs[endpointKey] {
-		calc.addMatchToIndex(selID, endpointKey, addedIPs)
-		calc.removeMatchFromIndex(selID, endpointKey, removedIPs)
-	}
-}
-
-func (calc *IpsetCalculator) OnEndpointDelete(endpointKey libcalico.Key) {
-	calc.OnEndpointUpdate(endpointKey, []string{})
-}
-
-// ActiveSelectorCalculator calculates the active set of selectors from the current set of policies/profiles.
-// It generates events for selectors becoming active/inactive.
-type ActiveSelectorCalculator struct {
-	// selectorsByUid maps from a selector's UID to the selector itself.
-	selectorsByUid selByUid
-	// activeUidsByResource maps from policy or profile ID to "set" of selector UIDs
-	activeUidsByResource map[libcalico.Key]map[string]bool
-	// activeResourcesByUid maps from selector UID back to the "set" of resources using it.
-	activeResourcesByUid map[string]map[libcalico.Key]bool
-
-	OnSelectorActive   func(selector selector.Selector)
-	OnSelectorInactive func(selector selector.Selector)
-}
-
-func NewActiveSelectorCalculator() *ActiveSelectorCalculator {
-	calc := &ActiveSelectorCalculator{
-		selectorsByUid:       make(selByUid),
-		activeUidsByResource: make(map[libcalico.Key]map[string]bool),
-		activeResourcesByUid: make(map[string]map[libcalico.Key]bool),
-	}
-	return calc
-}
-
-func (calc *ActiveSelectorCalculator) UpdatePolicy(key libcalico.PolicyKey, policy *libcalico.Policy) {
-	calc.updateResource(key, policy.Inbound, policy.Outbound)
-}
-
-func (calc *ActiveSelectorCalculator) UpdateProfile(key libcalico.ProfileKey, profile *libcalico.Profile) {
-	calc.updateResource(key, profile.Rules.Inbound, profile.Rules.Outbound)
-}
-
-func (calc *ActiveSelectorCalculator) updateResource(key libcalico.Key, inbound, outbound []libcalico.Rule) {
-	// Extract all the new selectors.
-	currentSelsByUid := make(selByUid)
-	currentSelsByUid.addSelectorsFromRules(inbound)
-	currentSelsByUid.addSelectorsFromRules(outbound)
-
-	// Find the set of old selectors.
-	knownUids, knownUidsPresent := calc.activeUidsByResource[key]
-
-	// Figure out which selectors are new.
-	addedUids := make(map[string]bool)
-	for key, _ := range currentSelsByUid {
-		if !knownUids[key] {
-			addedUids[key] = true
-		}
-	}
-
-	// Figure out which selectors are no-longer in use.
-	removedUids := make(map[string]bool)
-	for key, _ := range knownUids {
-		if _, ok := currentSelsByUid[key]; !ok {
-			removedUids[key] = true
-		}
-	}
-
-	// Add the new into the index, triggering events as we discover
-	// newly-active selectors.
-	if len(addedUids) > 0 {
-		if !knownUidsPresent {
-			knownUids = make(map[string]bool)
-			calc.activeUidsByResource[key] = knownUids
-		}
-		for uid, _ := range addedUids {
-			knownUids[uid] = true
-			resources, ok := calc.activeResourcesByUid[uid]
-			if !ok {
-				resources = make(map[libcalico.Key]bool)
-				calc.activeResourcesByUid[uid] = resources
-				sel := currentSelsByUid[uid]
-				calc.selectorsByUid[uid] = sel
-				// This selector just became active, trigger event.
-				calc.OnSelectorActive(sel)
-			}
-			resources[key] = true
-		}
-	}
-
-	// And remove the old, trigerring events as we clean up unused
-	// selectors.
-	for uid, _ := range removedUids {
-		delete(knownUids, uid)
-		resources := calc.activeResourcesByUid[uid]
-		delete(resources, key)
-		if len(resources) == 0 {
-			delete(calc.activeResourcesByUid, uid)
-			sel := calc.selectorsByUid[uid]
-			delete(calc.selectorsByUid, uid)
-			// This selector just became inactive, trigger event.
-			calc.OnSelectorInactive(sel)
-		}
-	}
-}
-
-// selByUid is an augmented map with methods to assist in extracting rules from policies.
-type selByUid map[string]selector.Selector
-
-func (sbu selByUid) addSelectorsFromRules(rules []libcalico.Rule) {
-	for _, rule := range rules {
-		selStrPs := []*string{rule.SrcSelector, rule.DstSelector, rule.NotSrcSelector, rule.NotDstSelector}
-		for _, selStrP := range selStrPs {
-			if selStrP != nil {
-				sel, err := selector.Parse(*selStrP)
-				if err != nil {
-					panic("FIXME: Handle bad selector")
-				}
-				sbu[sel.UniqueId()] = sel
-			}
-		}
-
-	}
 }
