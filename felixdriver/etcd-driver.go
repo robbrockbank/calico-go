@@ -170,6 +170,18 @@ func (cbs *felixCallbacks) OnKeysUpdated(updates []store.Update) {
 	for _, update := range updates {
 		cbs.dispatcher.DispatchUpdate(&update)
 		var msg map[string]interface{}
+		if len(update.Key) == 0 {
+			panic("Empty key")
+		}
+
+		if strings.Index(update.Key, "/calico/v1/host/") == 0 {
+			if strings.Contains(update.Key, "/endpoint/") {
+				if !strings.Contains(update.Key, "smc-ubuntu") {
+					continue
+				}
+			}
+		}
+
 		if update.ValueOrNil == nil {
 			msg = map[string]interface{}{
 				"type": "u",

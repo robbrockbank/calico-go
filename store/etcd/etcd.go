@@ -48,14 +48,15 @@ func (driver *etcdDriver) Start() {
 	// it will signal on the resyncIndex channel.
 	log.Info("Starting etcd driver")
 	etcdEvents := make(chan event, 20000)
-	resyncIndex := make(chan uint64, 5)
-	go driver.watchEtcd(etcdEvents, resyncIndex)
+	triggerResync := make(chan uint64, 5)
+	initialSnapshotIndex := make(chan uint64)
+	go driver.watchEtcd(etcdEvents, triggerResync, initialSnapshotIndex)
 
 	// Start a background thread to read snapshots from etcd.  It will
 	// read a start-of-day snapshot and then wait to be signalled on the
 	// resyncIndex channel.
 	snapshotUpdates := make(chan event)
-	go driver.readSnapshotsFromEtcd(snapshotUpdates, resyncIndex)
+	go driver.readSnapshotsFromEtcd(snapshotUpdates, triggerResync, initialSnapshotIndex)
 
 	go driver.mergeUpdates(snapshotUpdates, etcdEvents)
 
@@ -85,7 +86,7 @@ type event struct {
 	snapshotFinished bool
 }
 
-func (driver *etcdDriver) readSnapshotsFromEtcd(snapshotUpdates chan<- event, resyncIndex <-chan uint64) {
+func (driver *etcdDriver) readSnapshotsFromEtcd(snapshotUpdates chan<- event, triggerResync <-chan uint64, initialSnapshotIndex chan<- uint64) {
 	cfg := client.Config{
 		Endpoints:               []string{"http://127.0.0.1:2379"},
 		Transport:               client.DefaultTransport,
@@ -112,8 +113,9 @@ func (driver *etcdDriver) readSnapshotsFromEtcd(snapshotUpdates chan<- event, re
 			// some updates.  (Since we may connect to a follower
 			// server, it's possible, if unlikely, for us to read
 			// a stale snapshot.)
-			minIndex = <-resyncIndex
-			log.Infof("Asked for snapshot > %v\n", minIndex)
+			minIndex = <-triggerResync
+			log.Infof("Asked for snapshot > %v; last snapshot was %v",
+				minIndex, highestSnapshotIndex)
 			if highestSnapshotIndex >= minIndex {
 				// We've already read a newer snapshot, no
 				// need to re-read.
@@ -127,13 +129,13 @@ func (driver *etcdDriver) readSnapshotsFromEtcd(snapshotUpdates chan<- event, re
 			resp, err := kapi.Get(context.Background(),
 				"/calico/v1", &getOpts)
 			if err != nil {
-				println("Error getting snapshot, retrying...", err)
+				log.Warning("Error getting snapshot, retrying...", err)
 				time.Sleep(1 * time.Second)
 				continue readRetryLoop
 			}
 
 			if resp.Index < minIndex {
-				println("Retrieved stale snapshot, rereading...")
+				log.Info("Retrieved stale snapshot, rereading...")
 				continue readRetryLoop
 			}
 
@@ -145,6 +147,10 @@ func (driver *etcdDriver) readSnapshotsFromEtcd(snapshotUpdates chan<- event, re
 				snapshotIndex: resp.Index,
 			}
 			if resp.Index > highestSnapshotIndex {
+				if highestSnapshotIndex == 0 {
+					initialSnapshotIndex <- resp.Index
+					close(initialSnapshotIndex)
+				}
 				highestSnapshotIndex = resp.Index
 			}
 			break readRetryLoop
@@ -169,7 +175,7 @@ func sendNode(node *client.Node, snapshotUpdates chan<- event, resp *client.Resp
 	}
 }
 
-func (driver *etcdDriver) watchEtcd(etcdEvents chan<- event, resyncIndex chan<- uint64) {
+func (driver *etcdDriver) watchEtcd(etcdEvents chan<- event, triggerResync chan<- uint64, initialSnapshotIndex <-chan uint64) {
 	cfg := client.Config{
 		Endpoints: []string{"http://127.0.0.1:2379"},
 		Transport: client.DefaultTransport,
@@ -182,12 +188,14 @@ func (driver *etcdDriver) watchEtcd(etcdEvents chan<- event, resyncIndex chan<- 
 	}
 	kapi := client.NewKeysAPI(c)
 
+	start_index := <-initialSnapshotIndex
+
 	watcherOpts := client.WatcherOptions{
-		AfterIndex: 0, // Start at current index.
+		AfterIndex: start_index + 1,
 		Recursive:  true,
 	}
 	watcher := kapi.Watcher("/calico/v1", &watcherOpts)
-	lostSync := true
+	inSync := true
 	for {
 		resp, err := watcher.Next(context.Background())
 		if err != nil {
@@ -196,10 +204,13 @@ func (driver *etcdDriver) watchEtcd(etcdEvents chan<- event, resyncIndex chan<- 
 				errCode := err.Code
 				if errCode == client.ErrorCodeWatcherCleared ||
 					errCode == client.ErrorCodeEventIndexCleared {
-					println("Lost sync with etcd, restarting watcher")
+					log.Warning("Lost sync with etcd, restarting watcher")
+					watcherOpts.AfterIndex = 0
 					watcher = kapi.Watcher("/calico/v1",
 						&watcherOpts)
-					lostSync = true
+					inSync = false
+					// FIXME, we'll only trigger a resync after the next event
+					continue
 				} else {
 					log.Error("Error from etcd", err)
 					time.Sleep(1 * time.Second)
@@ -226,19 +237,19 @@ func (driver *etcdDriver) watchEtcd(etcdEvents chan<- event, resyncIndex chan<- 
 				// Creation of a directory, we don't care.
 				continue
 			}
-			if lostSync {
+			if !inSync {
 				// Tell the snapshot thread that we need a
 				// new snapshot.  The snapshot needs to be
 				// from our index or one lower.
-				resyncIndex <- node.ModifiedIndex - 1
-				lostSync = false
+				triggerResync <- node.ModifiedIndex - 1
+				inSync = true
 			}
 			etcdEvents <- event{
 				action:           actionType,
 				modifiedIndex:    node.ModifiedIndex,
 				key:              resp.Node.Key,
 				valueOrNil:       node.Value,
-				snapshotStarting: lostSync,
+				snapshotStarting: !inSync,
 			}
 		}
 	}
