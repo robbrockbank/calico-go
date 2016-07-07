@@ -15,9 +15,11 @@
 package hwm
 
 import (
-	"fmt"
+	"github.com/op/go-logging"
 	"gopkg.in/tchap/go-patricia.v2/patricia"
 )
+
+var log = logging.MustGetLogger("hwm")
 
 // HighWatermarkTracker: map that tracks the highest value seen for each key.
 // Supports temporary tracking of deletions in order to resolve concurrent updates.
@@ -45,11 +47,12 @@ func (trie *HighWatermarkTracker) StopTrackingDeletions() {
 }
 
 func (trie *HighWatermarkTracker) StoreUpdate(key string, newModIdx uint64) uint64 {
+	prefix := keyToPrefix(key)
 	if trie.deletionHwms != nil {
 		// Optimization: only check if this key is in the deletion
 		// trie if we've seen at least one deletion since...
 		if newModIdx < trie.deletionHwm {
-			_, delHwm := findLongestPrefix(trie.deletionHwms, key)
+			_, delHwm := findLongestPrefix(trie.deletionHwms, prefix)
 			if delHwm != nil {
 				if newModIdx < delHwm.(uint64) {
 					return delHwm.(uint64)
@@ -59,14 +62,14 @@ func (trie *HighWatermarkTracker) StoreUpdate(key string, newModIdx uint64) uint
 	}
 
 	// Get the old value
-	oldHwmOrNil := trie.hwms.Get(patricia.Prefix(key))
+	oldHwmOrNil := trie.hwms.Get(prefix)
 	if oldHwmOrNil != nil {
 		oldHwm := oldHwmOrNil.(uint64)
 		if oldHwm < newModIdx {
-			trie.hwms.Set(patricia.Prefix(key), newModIdx)
+			trie.hwms.Set(prefix, newModIdx)
 		}
 	} else {
-		trie.hwms.Set(patricia.Prefix(key), newModIdx)
+		trie.hwms.Set(prefix, newModIdx)
 	}
 	if oldHwmOrNil != nil {
 		return oldHwmOrNil.(uint64)
@@ -79,13 +82,13 @@ func (trie *HighWatermarkTracker) StoreDeletion(key string, newModIdx uint64) []
 	if newModIdx > trie.deletionHwm {
 		trie.deletionHwm = newModIdx
 	}
-	prefix := patricia.Prefix(key)
+	prefix := keyToPrefix(key)
 	if trie.deletionHwms != nil {
 		trie.deletionHwms.Set(prefix, newModIdx)
 	}
-	deletedKeys := make([]string, 1)
+	deletedKeys := make([]string, 0, 1)
 	trie.hwms.VisitSubtree(prefix, func(prefix patricia.Prefix, item patricia.Item) error {
-		childKey := string(prefix)
+		childKey := prefixToKey(prefix)
 		deletedKeys = append(deletedKeys, childKey)
 		return nil
 	})
@@ -108,18 +111,19 @@ func (trie *HighWatermarkTracker) DeleteOldKeys(hwmLimit uint64) []string {
 	})
 	deletedKeys := make([]string, 0, len(deletedPrefixes))
 	for _, childPrefix := range deletedPrefixes {
-		fmt.Printf("Prefix: %v\n", childPrefix)
-		deletedKeys = append(deletedKeys, string(childPrefix))
+		key := prefixToKey(childPrefix)
+		deletedKeys = append(deletedKeys, key)
+		log.Debugf("Prefix: %v\n", key)
 		trie.hwms.Delete(childPrefix)
 	}
 	return deletedKeys
 }
 
-func findLongestPrefix(trie *patricia.Trie, key string) (patricia.Prefix, patricia.Item) {
+func findLongestPrefix(trie *patricia.Trie, prefix patricia.Prefix) (patricia.Prefix, patricia.Item) {
 	var longestPrefix patricia.Prefix
 	var longestItem patricia.Item
 
-	trie.VisitPrefixes(patricia.Prefix(key),
+	trie.VisitPrefixes(prefix,
 		func(prefix patricia.Prefix, item patricia.Item) error {
 			if len(prefix) > len(longestPrefix) {
 				longestPrefix = prefix
@@ -128,4 +132,22 @@ func findLongestPrefix(trie *patricia.Trie, key string) (patricia.Prefix, patric
 			return nil
 		})
 	return longestPrefix, longestItem
+}
+
+// keyToPrefix converts a datastore key to a patricia.Prefix ending in a "/".
+// It's essential that our prefixes end with a "/" so that we can do deletion
+// processing.  Without a terminator, deleting "/foo" from the trie would
+// also delete "/foobar", which we don't want.
+func keyToPrefix(key string) patricia.Prefix {
+	if key[len(key)-1] != '/' {
+		key = key + "/"
+	}
+	return patricia.Prefix(key)
+}
+
+// prefixToKey converts a patricia.Prefix back into a datastore key.
+// Removed the trailing "/" added by encodeKey.
+func prefixToKey(prefix patricia.Prefix) string {
+	// Strip off the trailing "/"
+	return string(prefix)[:len(prefix)-1]
 }
