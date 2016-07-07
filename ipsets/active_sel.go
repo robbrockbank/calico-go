@@ -45,6 +45,10 @@ func (calc *ActiveSelectorCalculator) UpdatePolicy(key libcalico.PolicyKey, poli
 	calc.updateResource(key, policy.Inbound, policy.Outbound)
 }
 
+func (calc *ActiveSelectorCalculator) DeletePolicy(key libcalico.PolicyKey) {
+	calc.updateResource(key, []libcalico.Rule{}, []libcalico.Rule{})
+}
+
 func (calc *ActiveSelectorCalculator) UpdateProfile(key libcalico.ProfileKey, profile *libcalico.Profile) {
 	calc.updateResource(key, profile.Rules.Inbound, profile.Rules.Outbound)
 }
@@ -121,17 +125,24 @@ func (calc *ActiveSelectorCalculator) updateResource(key libcalico.Key, inbound,
 type selByUid map[string]selector.Selector
 
 func (sbu selByUid) addSelectorsFromRules(rules []libcalico.Rule) {
-	for _, rule := range rules {
-		selStrPs := []*string{rule.SrcSelector, rule.DstSelector, rule.NotSrcSelector, rule.NotDstSelector}
-		for _, selStrP := range selStrPs {
+	for i, rule := range rules {
+		selStrPs := []**string{&rule.SrcSelector,
+			&rule.DstSelector,
+			&rule.NotSrcSelector,
+			&rule.NotDstSelector}
+		for _, selStrPP := range selStrPs {
+			selStrP := *selStrPP
 			if selStrP != nil {
 				sel, err := selector.Parse(*selStrP)
 				if err != nil {
 					panic("FIXME: Handle bad selector")
 				}
-				sbu[sel.UniqueId()] = sel
+				uid := sel.UniqueId()
+				sbu[uid] = sel
+				// FIXME: Remove this horrible hack where we update the policy rule
+				*selStrPP = &uid
 			}
 		}
-
+		rules[i] = rule
 	}
 }

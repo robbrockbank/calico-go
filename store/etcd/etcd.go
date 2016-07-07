@@ -15,7 +15,6 @@
 package etcd
 
 import (
-	"fmt"
 	"github.com/projectcalico/calico-go/hwm"
 	"github.com/projectcalico/calico-go/store"
 	"time"
@@ -114,10 +113,11 @@ func (driver *etcdDriver) readSnapshotsFromEtcd(snapshotUpdates chan<- event, re
 			// server, it's possible, if unlikely, for us to read
 			// a stale snapshot.)
 			minIndex = <-resyncIndex
-			fmt.Printf("Asked for snapshot > %v\n", minIndex)
+			log.Infof("Asked for snapshot > %v\n", minIndex)
 			if highestSnapshotIndex >= minIndex {
 				// We've already read a newer snapshot, no
 				// need to re-read.
+				log.Info("Snapshot already new enough")
 				continue
 			}
 		}
@@ -201,11 +201,11 @@ func (driver *etcdDriver) watchEtcd(etcdEvents chan<- event, resyncIndex chan<- 
 						&watcherOpts)
 					lostSync = true
 				} else {
-					fmt.Printf("Error from etcd %v\n", err)
+					log.Error("Error from etcd", err)
 					time.Sleep(1 * time.Second)
 				}
 			case *client.ClusterError:
-				fmt.Printf("Cluster error from etcd %v\n", err)
+				log.Error("Cluster error from etcd", err)
 				time.Sleep(1 * time.Second)
 			default:
 				panic(err)
@@ -248,17 +248,20 @@ func (driver *etcdDriver) mergeUpdates(snapshotUpdates <-chan event, watcherUpda
 	var e event
 	var minSnapshotIndex uint64
 	hwms := hwm.NewHighWatermarkTracker()
+
+	driver.callbacks.OnStatusUpdated(store.WaitForDatastore)
 	for {
 		select {
 		case e = <-snapshotUpdates:
-		//fmt.Printf("Snapshot update %v @ %v\n", e.key, e.modifiedIndex)
+		//log.Debugf("Snapshot update %v @ %v\n", e.key, e.modifiedIndex)
 		case e = <-watcherUpdates:
-			//fmt.Printf("Watcher update %v @ %v\n", e.key, e.modifiedIndex)
+			//log.Debugf("Watcher update %v @ %v\n", e.key, e.modifiedIndex)
 		}
 		if e.snapshotStarting {
 			// Watcher lost sync, need to track deletions until
 			// we get a snapshot from after this index.
 			minSnapshotIndex = e.modifiedIndex
+			driver.callbacks.OnStatusUpdated(store.ResyncInProgress)
 		}
 		switch e.action {
 		case actionSet:
@@ -274,7 +277,7 @@ func (driver *etcdDriver) mergeUpdates(snapshotUpdates <-chan event, watcherUpda
 				indexToStore = e.modifiedIndex
 			}
 			oldIdx := hwms.StoreUpdate(e.key, indexToStore)
-			//fmt.Printf("%v update %v -> %v\n",
+			//log.Debugf("%v update %v -> %v\n",
 			//	e.key, oldIdx, e.modifiedIndex)
 			if oldIdx < e.modifiedIndex {
 				// Event is newer than value for that key.
@@ -289,33 +292,33 @@ func (driver *etcdDriver) mergeUpdates(snapshotUpdates <-chan event, watcherUpda
 		case actionDel:
 			deletedKeys := hwms.StoreDeletion(e.key,
 				e.modifiedIndex)
-			fmt.Printf("%v deleted; %v keys\n",
+			log.Debugf("Prefix %v deleted; %v keys",
 				e.key, len(deletedKeys))
+			updates := make([]store.Update, 0, len(deletedKeys))
 			for _, child := range deletedKeys {
-				update := store.Update{
+				updates = append(updates, store.Update{
 					Key:        child,
 					ValueOrNil: nil,
-				}
-				driver.callbacks.OnKeysUpdated(
-					[]store.Update{update})
+				})
 			}
+			driver.callbacks.OnKeysUpdated(updates)
 		case actionSnapFinished:
 			if e.snapshotIndex >= minSnapshotIndex {
 				// Now in sync.
 				hwms.StopTrackingDeletions()
 				keys := hwms.DeleteOldKeys(e.snapshotIndex)
-				fmt.Printf("Snapshot finished at index %v; "+
+				log.Infof("Snapshot finished at index %v; "+
 					"%v keys deleted.\n",
 					e.snapshotIndex, len(keys))
 				for _, key := range keys {
-					update := store.Update{
+					updates := []store.Update{{
 						Key:        key,
 						ValueOrNil: nil,
-					}
-					driver.callbacks.OnKeysUpdated(
-						[]store.Update{update})
+					}}
+					driver.callbacks.OnKeysUpdated(updates)
 				}
 			}
+			driver.callbacks.OnStatusUpdated(store.InSync)
 		}
 	}
 }

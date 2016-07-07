@@ -66,11 +66,20 @@ func NewResolver() *Resolver {
 // Datastore callbacks:
 
 // OnEndpointUpdate is called when we get an endpoint update from the datastore.
-// If fans out the update to the ipset calculator and the label index.
+// It fans out the update to the ipset calculator and the label index.
 func (res *Resolver) OnEndpointUpdate(key libcalico.EndpointKey, endpoint *libcalico.Endpoint) {
-	log.Infof("Endpoint %v updated", key)
+	log.Debugf("Endpoint %v updated", key)
 	res.ipsetCalc.OnEndpointUpdate(key, endpoint.IPv4Nets)
+	// TODO Parent IDs.
 	res.labelIdx.UpdateLabels(key, endpoint.Labels, make([]interface{}, 0))
+}
+
+// OnEndpointDelete is called when we get an endpoint deletion from the datastore.
+// It fans out the update to the ipset calculator and the label index.
+func (res *Resolver) OnEndpointDelete(key libcalico.EndpointKey) {
+	log.Debugf("Endpoint %v deleted", key)
+	res.ipsetCalc.OnEndpointDelete(key)
+	res.labelIdx.DeleteLabels(key)
 }
 
 // OnPolicyUpdate is called when we get a policy update from the datastore.
@@ -78,6 +87,12 @@ func (res *Resolver) OnEndpointUpdate(key libcalico.EndpointKey, endpoint *libca
 func (res *Resolver) OnPolicyUpdate(key libcalico.PolicyKey, policy *libcalico.Policy) {
 	log.Infof("Policy %v updated", key)
 	res.activeSelCalc.UpdatePolicy(key, policy)
+}
+
+// OnPolicyDelete is called when we get a policy deletion from the datastore.
+func (res *Resolver) OnPolicyDelete(key libcalico.PolicyKey) {
+	log.Infof("Policy %v updated", key)
+	res.activeSelCalc.DeletePolicy(key)
 }
 
 // OnProfileUpdate is called when we get a policy update from the datastore.
@@ -91,13 +106,13 @@ func (res *Resolver) OnProfileUpdate(key libcalico.ProfileKey, policy *libcalico
 
 // onIPAdded is called when an IP is now present in an active selector.
 func (res *Resolver) onIPAdded(selID, ip string) {
-	log.Infof("IP set %v now contains %v", selID, ip)
+	log.Debugf("IP set %v now contains %v", selID, ip)
 	res.OnIPAdded(selID, ip)
 }
 
 // onIPAdded is called when an IP is no longer present in a selector.
 func (res *Resolver) onIPRemoved(selID, ip string) {
-	log.Infof("IP set %v no longer contains %v", selID, ip)
+	log.Debugf("IP set %v no longer contains %v", selID, ip)
 	res.OnIPRemoved(selID, ip)
 }
 
@@ -105,13 +120,13 @@ func (res *Resolver) onIPRemoved(selID, ip string) {
 
 // onMatchStarted is called when an endpoint starts matching an active selector.
 func (res *Resolver) onMatchStarted(selId, labelId interface{}) {
-	log.Infof("Endpoint %v now matches selector %v", labelId, selId)
+	log.Debugf("Endpoint %v now matches selector %v", labelId, selId)
 	res.ipsetCalc.OnMatchStarted(labelId.(libcalico.Key), selId.(string))
 }
 
 // onMatchStopped is called when an endpoint stops matching an active selector.
 func (res *Resolver) onMatchStopped(selId, labelId interface{}) {
-	log.Infof("Endpoint %v no longer matches selector %v", labelId, selId)
+	log.Debugf("Endpoint %v no longer matches selector %v", labelId, selId)
 	res.ipsetCalc.OnMatchStopped(labelId.(libcalico.Key), selId.(string))
 }
 

@@ -21,14 +21,18 @@ import (
 	"github.com/projectcalico/calico-go/ipsets"
 	"github.com/projectcalico/calico-go/store"
 	"github.com/projectcalico/calico-go/store/etcd"
+	"github.com/projectcalico/libcalico/lib"
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"net"
+	"strings"
 )
 
 const usage = `etcd driver.
 
 Usage:
   etcd-driver <felix-socket>`
+
+var log = logging.MustGetLogger("etcd-driver")
 
 func main() {
 	// Parse command-line args.
@@ -39,6 +43,7 @@ func main() {
 	felixSckAddr := arguments["<felix-socket>"].(string)
 
 	logging.SetFormatter(logging.GlogFormatter)
+	logging.SetLevel(logging.INFO, "")
 
 	// Connect to Felix.
 	felixConn, err := net.Dial("unix", felixSckAddr)
@@ -59,7 +64,21 @@ func main() {
 
 	dispatcher := store.NewDispatcher()
 	dispatcher.OnEndpointUpdate = ipsetResolver.OnEndpointUpdate
+	dispatcher.OnEndpointDelete = ipsetResolver.OnEndpointDelete
+	dispatcher.OnEndpointParseFailure = func(key libcalico.EndpointKey, err error) {
+		log.Warningf("Failed to parse endpoint %v: %v. "+
+			"Treating as deletion.", key, err)
+		ipsetResolver.OnEndpointDelete(key)
+	}
+
 	dispatcher.OnPolicyUpdate = ipsetResolver.OnPolicyUpdate
+	dispatcher.OnPolicyDelete = ipsetResolver.OnPolicyDelete
+	dispatcher.OnPolicyParseFailure = func(key libcalico.PolicyKey, err error) {
+		log.Warningf("Failed to parse policy %v: %v. "+
+			"Treating as deletion.", key, err)
+		ipsetResolver.OnPolicyDelete(key)
+	}
+
 	// TODO: Profile update
 
 	// Get an etcd driver
@@ -139,6 +158,7 @@ func (cbs *felixCallbacks) OnStatusUpdated(status store.DriverStatus) {
 	case store.ResyncInProgress:
 		statusString = "resync"
 	}
+	log.Infof("Datastore status updated to %v: %v", status, statusString)
 	msg := map[string]interface{}{
 		"type":   "stat",
 		"status": statusString,
@@ -148,32 +168,25 @@ func (cbs *felixCallbacks) OnStatusUpdated(status store.DriverStatus) {
 
 func (cbs *felixCallbacks) OnKeysUpdated(updates []store.Update) {
 	for _, update := range updates {
-		cbs.dispatcher.DispatchUpdate(update)
+		cbs.dispatcher.DispatchUpdate(&update)
 		var msg map[string]interface{}
-		if update.ValueOrNil != nil {
-			msg = map[string]interface{}{
-				"type": "u",
-				"k":    update.Key,
-				"v":    update.ValueOrNil,
-			}
-		} else {
+		if update.ValueOrNil == nil {
 			msg = map[string]interface{}{
 				"type": "u",
 				"k":    update.Key,
 				"v":    nil,
 			}
+		} else {
+			// Deref the value so that we get better diags if the
+			// message is traced out.
+			msg = map[string]interface{}{
+				"type": "u",
+				"k":    update.Key,
+				"v":    *update.ValueOrNil,
+			}
 		}
 		cbs.toFelix <- msg
 	}
-}
-
-func (cbs *felixCallbacks) OnKeyDeleted(key string) {
-	msg := map[string]interface{}{
-		"type": "u",
-		"k":    key,
-		"v":    nil,
-	}
-	cbs.toFelix <- msg
 }
 
 func readMessagesFromFelix(felixDecoder *msgpack.Decoder, datastore store.Driver) {
@@ -196,10 +209,9 @@ func sendMessagesToFelix(felixEncoder *msgpack.Encoder,
 	toFelix <-chan map[string]interface{}) {
 	for {
 		msg := <-toFelix
-		//fmt.Println("Writing msg to felix", msg)
+		log.Debugf("Writing msg to felix: %#v\n", msg)
 		if err := felixEncoder.Encode(msg); err != nil {
 			panic("Failed to send message to felix")
 		}
-		//fmt.Println("Wrote msg to felix", msg)
 	}
 }

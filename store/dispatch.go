@@ -33,6 +33,10 @@ type Dispatcher struct {
 	OnPolicyUpdate       func(key libcalico.PolicyKey, endpoint *libcalico.Policy)
 	OnPolicyDelete       func(key libcalico.PolicyKey)
 	OnPolicyParseFailure func(key libcalico.PolicyKey, err error)
+	//
+	//OnProfileRulesUpdate       func(key libcalico.ProfileRulesKey, endpoint *libcalico.Profile)
+	//OnProfileRulesDelete       func(key libcalico.ProfileRulesKey)
+	//OnProfileRulesParseFailure func(key libcalico.ProfileRulesKey, err error)
 
 	OnTierMetadataUpdate       func(key libcalico.TierMetadataKey, endpoint *libcalico.TierMetadata)
 	OnTierMetadataDelete       func(key libcalico.TierMetadataKey)
@@ -53,6 +57,10 @@ func NewDispatcher() *Dispatcher {
 		OnPolicyUpdate:       func(key libcalico.PolicyKey, endpoint *libcalico.Policy) {},
 		OnPolicyDelete:       func(key libcalico.PolicyKey) {},
 		OnPolicyParseFailure: func(key libcalico.PolicyKey, err error) {},
+		//
+		//OnProfileRulesUpdate:       func(key libcalico.ProfileRulesKey, endpoint *libcalico.Profile) {},
+		//OnProfileRulesDelete:       func(key libcalico.ProfileRulesKey) {},
+		//OnProfileRulesParseFailure: func(key libcalico.ProfileRulesKey, err error) {},
 
 		OnTierMetadataUpdate:       func(key libcalico.TierMetadataKey, endpoint *libcalico.TierMetadata) {},
 		OnTierMetadataDelete:       func(key libcalico.TierMetadataKey) {},
@@ -61,7 +69,7 @@ func NewDispatcher() *Dispatcher {
 	return &d
 }
 
-func (d Dispatcher) DispatchUpdate(update Update) {
+func (d Dispatcher) DispatchUpdate(update *Update) {
 	log.Debug("Dispatching update ", update)
 	key := libcalico.ParseKey(update.Key)
 	if key == nil {
@@ -102,7 +110,26 @@ func (d Dispatcher) DispatchUpdate(update Update) {
 			} else {
 				d.OnPolicyUpdate(key, policy)
 			}
+			// FIXME: make this generic
+			json := policy.JSON()
+			log.Infof("New JSON: %v", json)
+			update.ValueOrNil = &json
 		}
+	//case libcalico.ProfileKey:
+	//	if update.ValueOrNil == nil {
+	//		d.OnProfileDelete(key)
+	//	} else {
+	//		policy, err := libcalico.ParseProfile(key, []byte(*update.ValueOrNil))
+	//		if err != nil {
+	//			d.OnProfileParseFailure(key, err)
+	//		} else {
+	//			d.OnProfileUpdate(key, policy)
+	//		}
+	//		// FIXME: make this generic
+	//		json := profile.JSON()
+	//		log.Infof("New JSON: %v", json)
+	//		update.ValueOrNil = &json
+	//	}
 	case libcalico.TierMetadataKey:
 		if update.ValueOrNil == nil {
 			d.OnTierMetadataDelete(key)
