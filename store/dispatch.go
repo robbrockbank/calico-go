@@ -17,56 +17,30 @@ package store
 import (
 	"github.com/op/go-logging"
 	"github.com/projectcalico/libcalico/lib"
+	"reflect"
 )
 
 var log = logging.MustGetLogger("store")
 
+type ParsedUpdateHandler func(update ParsedUpdate)
+
 type Dispatcher struct {
-	OnEndpointUpdate       func(key libcalico.EndpointKey, endpoint *libcalico.Endpoint)
-	OnEndpointDelete       func(key libcalico.EndpointKey)
-	OnEndpointParseFailure func(key libcalico.EndpointKey, err error)
-
-	OnHostEndpointUpdate       func(key libcalico.HostEndpointKey, hostEndpoint *libcalico.HostEndpoint)
-	OnHostEndpointDelete       func(key libcalico.HostEndpointKey)
-	OnHostEndpointParseFailure func(key libcalico.HostEndpointKey, err error)
-
-	OnPolicyUpdate       func(key libcalico.PolicyKey, endpoint *libcalico.Policy)
-	OnPolicyDelete       func(key libcalico.PolicyKey)
-	OnPolicyParseFailure func(key libcalico.PolicyKey, err error)
-	//
-	//OnProfileRulesUpdate       func(key libcalico.ProfileRulesKey, endpoint *libcalico.Profile)
-	//OnProfileRulesDelete       func(key libcalico.ProfileRulesKey)
-	//OnProfileRulesParseFailure func(key libcalico.ProfileRulesKey, err error)
-
-	OnTierMetadataUpdate       func(key libcalico.TierMetadataKey, endpoint *libcalico.TierMetadata)
-	OnTierMetadataDelete       func(key libcalico.TierMetadataKey)
-	OnTierMetadataParseFailure func(key libcalico.TierMetadataKey, err error)
+	listenersByType map[reflect.Kind]ParsedUpdateHandler
 }
 
 // NewDispatcher creates a Dispatcher with all its event handlers set to no-ops.
 func NewDispatcher() *Dispatcher {
 	d := Dispatcher{
-		OnEndpointUpdate:       func(key libcalico.EndpointKey, endpoint *libcalico.Endpoint) {},
-		OnEndpointDelete:       func(key libcalico.EndpointKey) {},
-		OnEndpointParseFailure: func(key libcalico.EndpointKey, err error) {},
-
-		OnHostEndpointUpdate:       func(key libcalico.HostEndpointKey, hostEndpoint *libcalico.HostEndpoint) {},
-		OnHostEndpointDelete:       func(key libcalico.HostEndpointKey) {},
-		OnHostEndpointParseFailure: func(key libcalico.HostEndpointKey, err error) {},
-
-		OnPolicyUpdate:       func(key libcalico.PolicyKey, endpoint *libcalico.Policy) {},
-		OnPolicyDelete:       func(key libcalico.PolicyKey) {},
-		OnPolicyParseFailure: func(key libcalico.PolicyKey, err error) {},
-		//
-		//OnProfileRulesUpdate:       func(key libcalico.ProfileRulesKey, endpoint *libcalico.Profile) {},
-		//OnProfileRulesDelete:       func(key libcalico.ProfileRulesKey) {},
-		//OnProfileRulesParseFailure: func(key libcalico.ProfileRulesKey, err error) {},
-
-		OnTierMetadataUpdate:       func(key libcalico.TierMetadataKey, endpoint *libcalico.TierMetadata) {},
-		OnTierMetadataDelete:       func(key libcalico.TierMetadataKey) {},
-		OnTierMetadataParseFailure: func(key libcalico.TierMetadataKey, err error) {},
+		listenersByType: make(map[reflect.Kind]ParsedUpdateHandler),
 	}
 	return &d
+}
+
+type ParsedUpdate struct {
+	Key      libcalico.Key
+	Value    interface{}
+	ParseErr error
+	RawJSON  string
 }
 
 func (d Dispatcher) DispatchUpdate(update *Update) {
@@ -77,69 +51,46 @@ func (d Dispatcher) DispatchUpdate(update *Update) {
 		log.Debug("Unknown key ", update.Key)
 		return
 	}
-	switch key := key.(type) {
-	case libcalico.EndpointKey:
-		if update.ValueOrNil == nil {
-			d.OnEndpointDelete(key)
-		} else {
-			endpoint, err := libcalico.ParseEndpoint(key, []byte(*update.ValueOrNil))
-			if err != nil {
-				d.OnEndpointParseFailure(key, err)
-			} else {
-				d.OnEndpointUpdate(key, endpoint)
-			}
+
+	parsedUpdate := ParsedUpdate{
+		Key: key,
+	}
+
+	if update.ValueOrNil != nil {
+		var data interface{}
+		var err error
+		parsedUpdate.RawJSON = update.ValueOrNil
+		rawData := []byte(*update.ValueOrNil)
+		switch key := key.(type) {
+		case libcalico.EndpointKey:
+			data, err = libcalico.ParseEndpoint(key, rawData)
+		case libcalico.HostEndpointKey:
+			data, err = libcalico.ParseHostEndpoint(key, rawData)
+		case libcalico.PolicyKey:
+			data, err = libcalico.ParsePolicy(key, rawData)
+		//case libcalico.ProfileKey:
+		//	if update.ValueOrNil == nil {
+		//		d.OnProfileDelete(key)
+		//	} else {
+		//		policy, err := libcalico.ParseProfile(key, []byte(*update.ValueOrNil))
+		//		if err != nil {
+		//			d.OnProfileParseFailure(key, err)
+		//		} else {
+		//			d.OnProfileUpdate(key, policy)
+		//		}
+		//		// FIXME: make this generic
+		//		json := profile.JSON()
+		//		log.Infof("New JSON: %v", json)
+		//		update.ValueOrNil = &json
+		//	}
+		case libcalico.TierMetadataKey:
+			data, err = libcalico.ParseTierMetadata(key, rawData)
 		}
-	case libcalico.HostEndpointKey:
-		if update.ValueOrNil == nil {
-			d.OnHostEndpointDelete(key)
-		} else {
-			hostEndpoint, err := libcalico.ParseHostEndpoint(key, []byte(*update.ValueOrNil))
-			if err != nil {
-				d.OnHostEndpointParseFailure(key, err)
-			} else {
-				d.OnHostEndpointUpdate(key, hostEndpoint)
-			}
-		}
-	case libcalico.PolicyKey:
-		if update.ValueOrNil == nil {
-			d.OnPolicyDelete(key)
-		} else {
-			policy, err := libcalico.ParsePolicy(key, []byte(*update.ValueOrNil))
-			if err != nil {
-				d.OnPolicyParseFailure(key, err)
-			} else {
-				d.OnPolicyUpdate(key, policy)
-			}
-			// FIXME: make this generic
-			json := policy.JSON()
-			log.Infof("New JSON: %v", json)
-			update.ValueOrNil = &json
-		}
-	//case libcalico.ProfileKey:
-	//	if update.ValueOrNil == nil {
-	//		d.OnProfileDelete(key)
-	//	} else {
-	//		policy, err := libcalico.ParseProfile(key, []byte(*update.ValueOrNil))
-	//		if err != nil {
-	//			d.OnProfileParseFailure(key, err)
-	//		} else {
-	//			d.OnProfileUpdate(key, policy)
-	//		}
-	//		// FIXME: make this generic
-	//		json := profile.JSON()
-	//		log.Infof("New JSON: %v", json)
-	//		update.ValueOrNil = &json
-	//	}
-	case libcalico.TierMetadataKey:
-		if update.ValueOrNil == nil {
-			d.OnTierMetadataDelete(key)
-		} else {
-			endpoint, err := libcalico.ParseTierMetadata(key, []byte(*update.ValueOrNil))
-			if err != nil {
-				d.OnTierMetadataParseFailure(key, err)
-			} else {
-				d.OnTierMetadataUpdate(key, endpoint)
-			}
-		}
+		parsedUpdate.Value = data
+		parsedUpdate.ParseErr = err
+	}
+
+	for _, recv := range d.listenersByType[reflect.TypeOf(key)] {
+		recv(parsedUpdate)
 	}
 }
