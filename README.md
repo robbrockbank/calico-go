@@ -3,7 +3,7 @@ This repositiory contains Calico's Go components:
 
 - `libcalico`, which can be imported as `"github.com/projectcalico/calico-go/lib"`
 - `calicoctl`
-- the `etcd-driver`, a sub-component of Felix.
+- (a highly-experiemental version of) the `etcd-driver`, a sub-component of Felix.
 
 ## Common set-up
 
