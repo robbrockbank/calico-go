@@ -15,82 +15,83 @@
 package store
 
 import (
+	"encoding/json"
 	"github.com/op/go-logging"
-	"github.com/projectcalico/calico-go/lib"
+	"github.com/projectcalico/calico-go/lib/backend"
 	"reflect"
 )
 
 var log = logging.MustGetLogger("store")
 
-type ParsedUpdateHandler func(update ParsedUpdate)
+type ParsedUpdateHandler func(update *ParsedUpdate)
 
 type Dispatcher struct {
-	listenersByType map[reflect.Kind]ParsedUpdateHandler
+	listenersByType map[reflect.Type][]ParsedUpdateHandler
 }
 
 // NewDispatcher creates a Dispatcher with all its event handlers set to no-ops.
 func NewDispatcher() *Dispatcher {
 	d := Dispatcher{
-		listenersByType: make(map[reflect.Kind]ParsedUpdateHandler),
+		listenersByType: make(map[reflect.Type][]ParsedUpdateHandler),
 	}
 	return &d
 }
 
 type ParsedUpdate struct {
-	Key      libcalico.Key
+	Key      backend.KeyInterface
 	Value    interface{}
 	ParseErr error
-	RawJSON  string
+	// RawUpdate is the Update that will be passed to Felix, mutable!
+	RawUpdate    *Update
+	ValueUpdated bool
 }
 
-func (d Dispatcher) DispatchUpdate(update *Update) {
-	log.Debug("Dispatching update ", update)
-	key := libcalico.ParseKey(update.Key)
+func (d *Dispatcher) Register(keyExample backend.KeyInterface, receiver ParsedUpdateHandler) {
+	keyType := reflect.TypeOf(keyExample)
+	if keyType.Kind() == reflect.Ptr {
+		panic("Register expects a non-pointer")
+	}
+	log.Infof("Registering listener for type %v: %v", keyType, receiver)
+	d.listenersByType[keyType] = append(d.listenersByType[keyType], receiver)
+}
+
+func (d *Dispatcher) DispatchUpdate(update *Update) {
+	log.Debugf("Dispatching %v", update)
+	key := backend.ParseKey(update.Key)
 	if key == nil {
-		// Unknown key.
-		log.Debug("Unknown key ", update.Key)
 		return
 	}
 
-	parsedUpdate := ParsedUpdate{
-		Key: key,
-	}
-
+	log.Debug("Key ", key)
+	var value interface{}
+	var err error
 	if update.ValueOrNil != nil {
-		var data interface{}
-		var err error
-		parsedUpdate.RawJSON = update.ValueOrNil
-		rawData := []byte(*update.ValueOrNil)
-		switch key := key.(type) {
-		case libcalico.EndpointKey:
-			data, err = libcalico.ParseEndpoint(key, rawData)
-		case libcalico.HostEndpointKey:
-			data, err = libcalico.ParseHostEndpoint(key, rawData)
-		case libcalico.PolicyKey:
-			data, err = libcalico.ParsePolicy(key, rawData)
-		//case libcalico.ProfileKey:
-		//	if update.ValueOrNil == nil {
-		//		d.OnProfileDelete(key)
-		//	} else {
-		//		policy, err := libcalico.ParseProfile(key, []byte(*update.ValueOrNil))
-		//		if err != nil {
-		//			d.OnProfileParseFailure(key, err)
-		//		} else {
-		//			d.OnProfileUpdate(key, policy)
-		//		}
-		//		// FIXME: make this generic
-		//		json := profile.JSON()
-		//		log.Infof("New JSON: %v", json)
-		//		update.ValueOrNil = &json
-		//	}
-		case libcalico.TierMetadataKey:
-			data, err = libcalico.ParseTierMetadata(key, rawData)
-		}
-		parsedUpdate.Value = data
-		parsedUpdate.ParseErr = err
+		value, err = backend.ParseValue(key, []byte(*update.ValueOrNil))
 	}
 
-	for _, recv := range d.listenersByType[reflect.TypeOf(key)] {
+	parsedUpdate := &ParsedUpdate{
+		Key:       key,
+		Value:     value,
+		ParseErr:  err,
+		RawUpdate: update,
+	}
+
+	keyType := reflect.TypeOf(key)
+	log.Debug("Type: ", keyType)
+	listeners := d.listenersByType[keyType]
+	log.Debug("Listeners: ", listeners)
+	for _, recv := range listeners {
 		recv(parsedUpdate)
+	}
+
+	if parsedUpdate.ValueUpdated {
+		// A handler has tweaked the value, update the JSON.
+		rawJSON, err := json.Marshal(parsedUpdate.Value)
+		if err != nil {
+			update.ValueOrNil = nil
+		} else {
+			str := string(rawJSON)
+			update.ValueOrNil = &str
+		}
 	}
 }

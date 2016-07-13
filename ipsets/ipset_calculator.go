@@ -13,12 +13,12 @@
 // limitations under the License.
 package ipsets
 
-import "github.com/projectcalico/calico-go/lib"
+import "github.com/projectcalico/calico-go/lib/backend"
 
 type IpsetCalculator struct {
-	keyToIPs            map[libcalico.Key][]string
-	keyToMatchingSelIDs map[libcalico.Key]map[string]bool
-	selIdToIPToKey      map[string]map[string]map[libcalico.Key]bool
+	keyToIPs            map[backend.KeyInterface][]string
+	keyToMatchingSelIDs map[backend.KeyInterface]map[string]bool
+	selIdToIPToKey      map[string]map[string]map[backend.KeyInterface]bool
 
 	OnIPAdded   func(selID string, ip string)
 	OnIPRemoved func(selID string, ip string)
@@ -26,14 +26,14 @@ type IpsetCalculator struct {
 
 func NewIpsetCalculator() *IpsetCalculator {
 	calc := &IpsetCalculator{
-		keyToIPs:            make(map[libcalico.Key][]string),
-		keyToMatchingSelIDs: make(map[libcalico.Key]map[string]bool),
-		selIdToIPToKey:      make(map[string]map[string]map[libcalico.Key]bool),
+		keyToIPs:            make(map[backend.KeyInterface][]string),
+		keyToMatchingSelIDs: make(map[backend.KeyInterface]map[string]bool),
+		selIdToIPToKey:      make(map[string]map[string]map[backend.KeyInterface]bool),
 	}
 	return calc
 }
 
-func (calc *IpsetCalculator) OnMatchStarted(key libcalico.Key, selId string) {
+func (calc *IpsetCalculator) OnMatchStarted(key backend.KeyInterface, selId string) {
 	matchingIDs, ok := calc.keyToMatchingSelIDs[key]
 	if !ok {
 		matchingIDs = make(map[string]bool)
@@ -45,18 +45,18 @@ func (calc *IpsetCalculator) OnMatchStarted(key libcalico.Key, selId string) {
 	calc.addMatchToIndex(selId, key, ips)
 }
 
-func (calc *IpsetCalculator) addMatchToIndex(selID string, key libcalico.Key, ips []string) {
+func (calc *IpsetCalculator) addMatchToIndex(selID string, key backend.KeyInterface, ips []string) {
 	log.Debugf("Selector %v now matches IPs %v via %v", selID, ips, key)
 	ipToKeys, ok := calc.selIdToIPToKey[selID]
 	if !ok {
-		ipToKeys = make(map[string]map[libcalico.Key]bool)
+		ipToKeys = make(map[string]map[backend.KeyInterface]bool)
 		calc.selIdToIPToKey[selID] = ipToKeys
 	}
 
 	for _, ip := range ips {
 		keys, ok := ipToKeys[ip]
 		if !ok {
-			keys = make(map[libcalico.Key]bool)
+			keys = make(map[backend.KeyInterface]bool)
 			ipToKeys[ip] = keys
 			calc.OnIPAdded(selID, ip)
 		}
@@ -64,7 +64,7 @@ func (calc *IpsetCalculator) addMatchToIndex(selID string, key libcalico.Key, ip
 	}
 }
 
-func (calc *IpsetCalculator) OnMatchStopped(key libcalico.Key, selId string) {
+func (calc *IpsetCalculator) OnMatchStopped(key backend.KeyInterface, selId string) {
 	matchingIDs := calc.keyToMatchingSelIDs[key]
 	delete(matchingIDs, selId)
 	if len(matchingIDs) == 0 {
@@ -75,7 +75,7 @@ func (calc *IpsetCalculator) OnMatchStopped(key libcalico.Key, selId string) {
 	calc.removeMatchFromIndex(selId, key, ips)
 }
 
-func (calc *IpsetCalculator) removeMatchFromIndex(selID string, key libcalico.Key, ips []string) {
+func (calc *IpsetCalculator) removeMatchFromIndex(selID string, key backend.KeyInterface, ips []string) {
 	log.Debugf("Selector %v no longer matches IPs %v via %v", selID, ips, key)
 	ipToKeys := calc.selIdToIPToKey[selID]
 	for _, ip := range ips {
@@ -91,7 +91,7 @@ func (calc *IpsetCalculator) removeMatchFromIndex(selID string, key libcalico.Ke
 	}
 }
 
-func (calc *IpsetCalculator) OnEndpointUpdate(endpointKey libcalico.Key, ips []string) {
+func (calc *IpsetCalculator) OnEndpointUpdate(endpointKey backend.KeyInterface, ips []string) {
 	log.Debugf("Endpoint %v IPs updated to %v", endpointKey, ips)
 	oldIPs := calc.keyToIPs[endpointKey]
 	if len(ips) == 0 {
@@ -129,6 +129,6 @@ func (calc *IpsetCalculator) OnEndpointUpdate(endpointKey libcalico.Key, ips []s
 	}
 }
 
-func (calc *IpsetCalculator) OnEndpointDelete(endpointKey libcalico.Key) {
+func (calc *IpsetCalculator) OnEndpointDelete(endpointKey backend.KeyInterface) {
 	calc.OnEndpointUpdate(endpointKey, []string{})
 }

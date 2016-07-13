@@ -19,7 +19,6 @@ import (
 	"github.com/docopt/docopt-go"
 	"github.com/op/go-logging"
 	"github.com/projectcalico/calico-go/ipsets"
-	"github.com/projectcalico/calico-go/lib"
 	"github.com/projectcalico/calico-go/store"
 	"github.com/projectcalico/calico-go/store/etcd"
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -63,23 +62,8 @@ func main() {
 	ipsetResolver := ipsets.NewResolver()
 
 	dispatcher := store.NewDispatcher()
-	dispatcher.OnEndpointUpdate = ipsetResolver.OnEndpointUpdate
-	dispatcher.OnEndpointDelete = ipsetResolver.OnEndpointDelete
-	dispatcher.OnEndpointParseFailure = func(key libcalico.EndpointKey, err error) {
-		log.Warningf("Failed to parse endpoint %v: %v. "+
-			"Treating as deletion.", key, err)
-		ipsetResolver.OnEndpointDelete(key)
-	}
 
-	dispatcher.OnPolicyUpdate = ipsetResolver.OnPolicyUpdate
-	dispatcher.OnPolicyDelete = ipsetResolver.OnPolicyDelete
-	dispatcher.OnPolicyParseFailure = func(key libcalico.PolicyKey, err error) {
-		log.Warningf("Failed to parse policy %v: %v. "+
-			"Treating as deletion.", key, err)
-		ipsetResolver.OnPolicyDelete(key)
-	}
-
-	// TODO: Profile update
+	ipsetResolver.RegisterWith(dispatcher)
 
 	// Get an etcd driver
 	felixCbs := &felixCallbacks{

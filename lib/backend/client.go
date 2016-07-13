@@ -26,6 +26,7 @@ import (
 	"github.com/projectcalico/calico-go/lib/api"
 	"github.com/projectcalico/calico-go/lib/common"
 	"golang.org/x/net/context"
+	"reflect"
 )
 
 var (
@@ -40,6 +41,7 @@ var (
 type KeyInterface interface {
 	asEtcdKey() (string, error)
 	asEtcdDeleteKey() (string, error)
+	valueType() reflect.Type
 }
 
 // Interface used to perform datastore lookups.

@@ -20,7 +20,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/projectcalico/calico-go/labels/selectors"
-	"github.com/projectcalico/calico-go/lib"
 )
 
 type update struct {
@@ -31,9 +30,9 @@ type update struct {
 
 var _ = Describe("Keys", func() {
 	It("should work as a map key", func() {
-		key1 := libcalico.ParseKey("/calico/v1/policy/tier/tier1/policy/policy1")
-		key2 := libcalico.ParseKey("calico/v1/policy/tier/tier1/policy/policy1")
-		key3 := libcalico.ParseKey("/calico/v1/policy/tier/tier1/policy/policy2")
+		key1 := backend.ParseKey("/calico/v1/policy/tier/tier1/policy/policy1")
+		key2 := backend.ParseKey("calico/v1/policy/tier/tier1/policy/policy1")
+		key3 := backend.ParseKey("/calico/v1/policy/tier/tier1/policy/policy2")
 		m := make(map[interface{}]bool)
 		m[key1] = true
 		Expect(m[key2]).To(BeTrue())

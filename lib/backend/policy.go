@@ -20,6 +20,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/projectcalico/calico-go/lib/common"
+	"reflect"
 )
 
 var (
@@ -42,6 +43,10 @@ func (key PolicyKey) asEtcdKey() (string, error) {
 
 func (key PolicyKey) asEtcdDeleteKey() (string, error) {
 	return key.asEtcdKey()
+}
+
+func (key PolicyKey) valueType() reflect.Type {
+	return reflect.TypeOf(Policy{})
 }
 
 type PolicyListOptions struct {

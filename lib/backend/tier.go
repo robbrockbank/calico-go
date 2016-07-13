@@ -20,6 +20,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/projectcalico/calico-go/lib/common"
+	"reflect"
 )
 
 var (
@@ -41,6 +42,10 @@ func (key TierKey) asEtcdDeleteKey() (string, error) {
 	}
 	e := fmt.Sprintf("/calico/v1/policy/tier/%s", key.Name)
 	return e, nil
+}
+
+func (key TierKey) valueType() reflect.Type {
+	return reflect.TypeOf(Tier{})
 }
 
 type TierListOptions struct {

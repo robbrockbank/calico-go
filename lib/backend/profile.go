@@ -20,6 +20,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/projectcalico/calico-go/lib/common"
+	"reflect"
 )
 
 var (
@@ -45,6 +46,10 @@ func (key ProfileKey) asEtcdDeleteKey() (string, error) {
 	return key.asEtcdKey()
 }
 
+func (key ProfileKey) valueType() reflect.Type {
+	return reflect.TypeOf(Profile{}) // FIXME is this required?
+}
+
 // ProfileRulesKey implements the KeyInterface for the profile rules
 type ProfileRulesKey struct {
 	ProfileKey
@@ -53,6 +58,10 @@ type ProfileRulesKey struct {
 func (key ProfileRulesKey) asEtcdKey() (string, error) {
 	e, err := key.ProfileKey.asEtcdKey()
 	return e + "/rules", err
+}
+
+func (key ProfileRulesKey) valueType() reflect.Type {
+	return reflect.TypeOf(ProfileRules{})
 }
 
 // ProfileTagsKey implements the KeyInterface for the profile tags
@@ -65,6 +74,10 @@ func (key ProfileTagsKey) asEtcdKey() (string, error) {
 	return e + "/tags", err
 }
 
+func (key ProfileTagsKey) valueType() reflect.Type {
+	return reflect.TypeOf([]string{})
+}
+
 // ProfileLabelsKey implements the KeyInterface for the profile labels
 type ProfileLabelsKey struct {
 	ProfileKey
@@ -73,6 +86,10 @@ type ProfileLabelsKey struct {
 func (key ProfileLabelsKey) asEtcdKey() (string, error) {
 	e, err := key.ProfileKey.asEtcdKey()
 	return e + "/labels", err
+}
+
+func (key ProfileLabelsKey) valueType() reflect.Type {
+	return reflect.TypeOf(map[string]string{})
 }
 
 type ProfileListOptions struct {

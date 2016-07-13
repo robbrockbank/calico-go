@@ -15,7 +15,7 @@ package ipsets
 
 import (
 	"github.com/projectcalico/calico-go/labels/selectors"
-	"github.com/projectcalico/calico-go/lib"
+	"github.com/projectcalico/calico-go/lib/backend"
 )
 
 // ActiveSelectorCalculator calculates the active set of selectors from the current set of policies/profiles.
@@ -24,9 +24,9 @@ type ActiveSelectorCalculator struct {
 	// selectorsByUid maps from a selector's UID to the selector itself.
 	selectorsByUid selByUid
 	// activeUidsByResource maps from policy or profile ID to "set" of selector UIDs
-	activeUidsByResource map[libcalico.Key]map[string]bool
+	activeUidsByResource map[backend.KeyInterface]map[string]bool
 	// activeResourcesByUid maps from selector UID back to the "set" of resources using it.
-	activeResourcesByUid map[string]map[libcalico.Key]bool
+	activeResourcesByUid map[string]map[backend.KeyInterface]bool
 
 	OnSelectorActive   func(selector selector.Selector)
 	OnSelectorInactive func(selector selector.Selector)
@@ -35,25 +35,25 @@ type ActiveSelectorCalculator struct {
 func NewActiveSelectorCalculator() *ActiveSelectorCalculator {
 	calc := &ActiveSelectorCalculator{
 		selectorsByUid:       make(selByUid),
-		activeUidsByResource: make(map[libcalico.Key]map[string]bool),
-		activeResourcesByUid: make(map[string]map[libcalico.Key]bool),
+		activeUidsByResource: make(map[backend.KeyInterface]map[string]bool),
+		activeResourcesByUid: make(map[string]map[backend.KeyInterface]bool),
 	}
 	return calc
 }
 
-func (calc *ActiveSelectorCalculator) UpdatePolicy(key libcalico.PolicyKey, policy *libcalico.Policy) {
-	calc.updateResource(key, policy.Inbound, policy.Outbound)
+func (calc *ActiveSelectorCalculator) UpdatePolicy(key backend.PolicyKey, policy *backend.Policy) {
+	calc.updateResource(key, policy.InboundRules, policy.OutboundRules)
 }
 
-func (calc *ActiveSelectorCalculator) DeletePolicy(key libcalico.PolicyKey) {
-	calc.updateResource(key, []libcalico.Rule{}, []libcalico.Rule{})
+func (calc *ActiveSelectorCalculator) DeletePolicy(key backend.PolicyKey) {
+	calc.updateResource(key, []backend.Rule{}, []backend.Rule{})
 }
 
-func (calc *ActiveSelectorCalculator) UpdateProfile(key libcalico.ProfileKey, profile *libcalico.Profile) {
-	calc.updateResource(key, profile.Rules.Inbound, profile.Rules.Outbound)
+func (calc *ActiveSelectorCalculator) UpdateProfile(key backend.ProfileKey, profile *backend.Profile) {
+	calc.updateResource(key, profile.Rules.InboundRules, profile.Rules.OutboundRules)
 }
 
-func (calc *ActiveSelectorCalculator) updateResource(key libcalico.Key, inbound, outbound []libcalico.Rule) {
+func (calc *ActiveSelectorCalculator) updateResource(key backend.KeyInterface, inbound, outbound []backend.Rule) {
 	// Extract all the new selectors.
 	currentSelsByUid := make(selByUid)
 	currentSelsByUid.addSelectorsFromRules(inbound)
@@ -93,7 +93,7 @@ func (calc *ActiveSelectorCalculator) updateResource(key libcalico.Key, inbound,
 			resources, ok := calc.activeResourcesByUid[uid]
 			if !ok {
 				log.Debugf("Selector became active: %v", uid)
-				resources = make(map[libcalico.Key]bool)
+				resources = make(map[backend.KeyInterface]bool)
 				calc.activeResourcesByUid[uid] = resources
 				sel := currentSelsByUid[uid]
 				calc.selectorsByUid[uid] = sel
@@ -124,15 +124,14 @@ func (calc *ActiveSelectorCalculator) updateResource(key libcalico.Key, inbound,
 // selByUid is an augmented map with methods to assist in extracting rules from policies.
 type selByUid map[string]selector.Selector
 
-func (sbu selByUid) addSelectorsFromRules(rules []libcalico.Rule) {
+func (sbu selByUid) addSelectorsFromRules(rules []backend.Rule) {
 	for i, rule := range rules {
-		selStrPs := []**string{&rule.SrcSelector,
+		selStrPs := []*string{&rule.SrcSelector,
 			&rule.DstSelector,
 			&rule.NotSrcSelector,
 			&rule.NotDstSelector}
-		for _, selStrPP := range selStrPs {
-			selStrP := *selStrPP
-			if selStrP != nil {
+		for _, selStrP := range selStrPs {
+			if *selStrP != "" {
 				sel, err := selector.Parse(*selStrP)
 				if err != nil {
 					panic("FIXME: Handle bad selector")
@@ -140,7 +139,7 @@ func (sbu selByUid) addSelectorsFromRules(rules []libcalico.Rule) {
 				uid := sel.UniqueId()
 				sbu[uid] = sel
 				// FIXME: Remove this horrible hack where we update the policy rule
-				*selStrPP = &uid
+				*selStrP = uid
 			}
 		}
 		rules[i] = rule

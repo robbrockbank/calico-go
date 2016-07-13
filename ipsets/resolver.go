@@ -18,7 +18,8 @@ import (
 	"github.com/op/go-logging"
 	"github.com/projectcalico/calico-go/labels"
 	"github.com/projectcalico/calico-go/labels/selectors"
-	"github.com/projectcalico/calico-go/lib"
+	"github.com/projectcalico/calico-go/lib/backend"
+	"github.com/projectcalico/calico-go/store"
 )
 
 var log = logging.MustGetLogger("ipsets")
@@ -63,44 +64,47 @@ func NewResolver() *Resolver {
 	return resolver
 }
 
-// Datastore callbacks:
-
-// OnEndpointUpdate is called when we get an endpoint update from the datastore.
-// It fans out the update to the ipset calculator and the label index.
-func (res *Resolver) OnEndpointUpdate(key libcalico.EndpointKey, endpoint *libcalico.Endpoint) {
-	log.Debugf("Endpoint %v updated", key)
-	res.ipsetCalc.OnEndpointUpdate(key, endpoint.IPv4Nets)
-	// TODO Parent IDs.
-	res.labelIdx.UpdateLabels(key, endpoint.Labels, make([]interface{}, 0))
+// RegisterWith registers the update callbacks that this object requires with the dispatcher.
+func (res *Resolver) RegisterWith(disp *store.Dispatcher) {
+	disp.Register(backend.WorkloadEndpointKey{}, res.onEndpointUpdate)
+	disp.Register(backend.PolicyKey{}, res.onPolicyUpdate)
+	// TODO: Profile update
 }
 
-// OnEndpointDelete is called when we get an endpoint deletion from the datastore.
-// It fans out the update to the ipset calculator and the label index.
-func (res *Resolver) OnEndpointDelete(key libcalico.EndpointKey) {
-	log.Debugf("Endpoint %v deleted", key)
-	res.ipsetCalc.OnEndpointDelete(key)
-	res.labelIdx.DeleteLabels(key)
+// Datastore callbacks:
+
+func (res *Resolver) onEndpointUpdate(update *store.ParsedUpdate) {
+	log.Debugf("Endpoint %v updated", update)
+	if update.Value != nil {
+		ep := update.Value.(*backend.WorkloadEndpoint)
+		res.ipsetCalc.OnEndpointUpdate(update.Key, ep.IPv4Nets)
+		// TODO Parent IDs.
+		res.labelIdx.UpdateLabels(update.Key, ep.Labels, make([]interface{}, 0))
+	} else {
+		res.ipsetCalc.OnEndpointDelete(update.Key)
+		res.labelIdx.DeleteLabels(update.Key)
+	}
 }
 
 // OnPolicyUpdate is called when we get a policy update from the datastore.
 // It passes through to the ActiveSetCalculator, which extracts the active ipsets from its rules.
-func (res *Resolver) OnPolicyUpdate(key libcalico.PolicyKey, policy *libcalico.Policy) {
-	log.Infof("Policy %v updated", key)
-	res.activeSelCalc.UpdatePolicy(key, policy)
+func (res *Resolver) onPolicyUpdate(update *store.ParsedUpdate) {
+	log.Debugf("Policy %v updated", update)
+	if update.Value != nil {
+		policy := update.Value.(*backend.Policy)
+		res.activeSelCalc.UpdatePolicy(update.Key.(backend.PolicyKey), policy)
+		update.ValueUpdated = true
+	} else {
+		res.activeSelCalc.DeletePolicy(update.Key.(backend.PolicyKey))
+	}
 }
 
-// OnPolicyDelete is called when we get a policy deletion from the datastore.
-func (res *Resolver) OnPolicyDelete(key libcalico.PolicyKey) {
-	log.Infof("Policy %v updated", key)
-	res.activeSelCalc.DeletePolicy(key)
-}
-
-// OnProfileUpdate is called when we get a policy update from the datastore.
-// It passes through to the ActiveSetCalculator, which extracts the active ipsets from its rules.
-func (res *Resolver) OnProfileUpdate(key libcalico.ProfileKey, policy *libcalico.Profile) {
-	log.Infof("Profile %v updated", key)
-	res.activeSelCalc.UpdateProfile(key, policy)
-}
+//// OnProfileUpdate is called when we get a profile update from the datastore.
+//// It passes through to the ActiveSetCalculator, which extracts the active ipsets from its rules.
+//func (res *Resolver) OnProfileUpdate(key backend.ProfileKey, policy *backend.Profile) {
+//	log.Infof("Profile %v updated", key)
+//	res.activeSelCalc.UpdateProfile(key, policy)
+//}
 
 // IpsetCalculator callbacks:
 
@@ -121,13 +125,13 @@ func (res *Resolver) onIPRemoved(selID, ip string) {
 // onMatchStarted is called when an endpoint starts matching an active selector.
 func (res *Resolver) onMatchStarted(selId, labelId interface{}) {
 	log.Debugf("Endpoint %v now matches selector %v", labelId, selId)
-	res.ipsetCalc.OnMatchStarted(labelId.(libcalico.Key), selId.(string))
+	res.ipsetCalc.OnMatchStarted(labelId.(backend.KeyInterface), selId.(string))
 }
 
 // onMatchStopped is called when an endpoint stops matching an active selector.
 func (res *Resolver) onMatchStopped(selId, labelId interface{}) {
 	log.Debugf("Endpoint %v no longer matches selector %v", labelId, selId)
-	res.ipsetCalc.OnMatchStopped(labelId.(libcalico.Key), selId.(string))
+	res.ipsetCalc.OnMatchStopped(labelId.(backend.KeyInterface), selId.(string))
 }
 
 // ActiveSelectorCalculator callbacks:

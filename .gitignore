@@ -1,5 +1,6 @@
 *~
 *.bak
+bin
 build
 calicobuild.created
 calico_containers/pycalico.egg-info/
@@ -11,7 +12,6 @@ cover
 *.coverprofile
 dist
 env
-etcd-driver
 .idea
 *.pyc
 vendor
