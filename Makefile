@@ -23,7 +23,7 @@ bin/calicoctl: force
 
 release/calicoctl: force
 	mkdir -p release
-	docker build -t calicoctl-build -f build-calicoctl/Dockerfile .
+	cd build-calicoctl && docker build -t calicoctl-build .
 	docker run --rm -v `pwd`:/calico-go calicoctl-build /calico-go/build-calicoctl/build.sh
 
 clean:
