@@ -1,8 +1,0 @@
-setuptools
-docopt
-PyInstaller
-docker-py
-prettytable
-netaddr
-ConcurrentLogHandler
-pyyaml
