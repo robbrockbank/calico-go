@@ -20,10 +20,10 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
-	"github.com/projectcalico/libcalico/lib/api"
-	"github.com/projectcalico/libcalico/lib/api/unversioned"
-	"github.com/projectcalico/libcalico/lib/client"
-	"github.com/projectcalico/libcalico/lib/common"
+	"github.com/projectcalico/calico-go/lib/api"
+	"github.com/projectcalico/calico-go/lib/api/unversioned"
+	"github.com/projectcalico/calico-go/lib/client"
+	"github.com/projectcalico/calico-go/lib/common"
 )
 
 func Delete(args []string) error {

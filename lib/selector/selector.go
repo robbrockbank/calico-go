@@ -14,7 +14,7 @@
 
 package selector
 
-import "github.com/projectcalico/libcalico/lib/selector/parser"
+import "github.com/projectcalico/calico-go/lib/selector/parser"
 
 type Selector interface {
 	Evaluate(labels map[string]string) bool

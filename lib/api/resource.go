@@ -24,11 +24,11 @@ import (
 	"io/ioutil"
 	"os"
 
-	. "github.com/projectcalico/libcalico/lib/api/unversioned"
+	. "github.com/projectcalico/calico-go/lib/api/unversioned"
 
 	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
-	"github.com/projectcalico/libcalico/lib/common"
+	"github.com/projectcalico/calico-go/lib/common"
 )
 
 var helpers map[TypeMetadata]resourceHelper

@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
-	. "github.com/projectcalico/libcalico/lib/selector/tokenizer"
+	. "github.com/projectcalico/calico-go/lib/selector/tokenizer"
 )
 
 // Parse a string representation of a selector expression into a Selector.

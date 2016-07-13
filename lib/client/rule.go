@@ -15,8 +15,8 @@
 package client
 
 import (
-	"github.com/projectcalico/libcalico/lib/api"
-	"github.com/projectcalico/libcalico/lib/backend"
+	"github.com/projectcalico/calico-go/lib/api"
+	"github.com/projectcalico/calico-go/lib/backend"
 )
 
 func ruleActionAPIToBackend(action string) string {

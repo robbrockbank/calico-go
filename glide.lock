@@ -1,10 +1,10 @@
-hash: 4f9e929b35b52581f2078dc231ad683dc85bebea57efb1caa5f29a1fe4cd92af
-updated: 2016-07-06T15:49:22.877456574-07:00
+hash: 268d4d1b7fca22a19bc58bcc4c8363a57fc6d1b1aeafe597d91b1b86ce5cee44
+updated: 2016-07-13T10:20:19.171920664+01:00
 imports:
 - name: github.com/cloudfoundry-incubator/candiedyaml
   version: 99c3df83b51532e3615f851d8c2dbb638f5313bf
 - name: github.com/coreos/etcd
-  version: 1c9e0a0e33051fed6c05c141e6fcbfe5c7f2a899
+  version: 7114a273452024f834a500aa826e61b2615aed3b
   subpackages:
   - client
   - pkg/transport
@@ -13,7 +13,7 @@ imports:
   - pkg/fileutil
   - pkg/tlsutil
 - name: github.com/coreos/go-systemd
-  version: 4fdcc47482107227bd1ed258e5b7bfbc82c9512a
+  version: 5f8a27bd032fac5e5bbdcbf614a9e95e06cdbdbb
   subpackages:
   - journal
 - name: github.com/coreos/pkg
@@ -22,20 +22,51 @@ imports:
   - capnslog
 - name: github.com/docopt/docopt-go
   version: 784ddc588536785e7299f7272f39101f7faccc3f
+- name: github.com/fvbock/trie
+  version: 1d40233c66bdef97a7d978cbe799531a6acf1ea6
 - name: github.com/ghodss/yaml
   version: aa0c862057666179de291b67d9f093d12b5a8473
 - name: github.com/golang/glog
   version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
+- name: github.com/golang/protobuf
+  version: 874264fbbb43f4d91e999fecb4b40143ed611400
+  subpackages:
+  - proto
 - name: github.com/kelseyhightower/envconfig
   version: 91921eb4cf999321cdbeebdba5a03555800d493b
+- name: github.com/onsi/gomega
+  version: 9574b2d94c03faf63bf1b296e21d9db950006ea4
+- name: github.com/op/go-logging
+  version: 970db520ece77730c7e4724c61121037378659d9
 - name: github.com/ugorji/go
   version: b94837a2404ab90efe9289e77a70694c355739cb
   subpackages:
   - codec
 - name: golang.org/x/net
-  version: b400c2eff1badec7022a8c8f5bea058b6315eed7
+  version: f841c39de738b1d0df95b5a7187744f0e03d8112
   subpackages:
   - context
+- name: google.golang.org/appengine
+  version: 267c27e7492265b84fc6719503b14a1e17975d79
+  subpackages:
+  - datastore
+  - internal
+  - internal/datastore
+  - internal/app_identity
+  - internal/modules
+  - internal/base
+  - internal/log
+  - internal/remote_api
 - name: gopkg.in/go-playground/validator.v8
   version: 25f1823069d853eccffbde025dca1812fa09c14b
+- name: gopkg.in/tchap/go-patricia.v2
+  version: 8304b1f670ec9603eb3eebcb3bd08e13a8a2630b
+  subpackages:
+  - patricia
+- name: gopkg.in/vmihailenco/msgpack.v2
+  version: 585b09497e708217121c79a5aa185647b757605a
+  subpackages:
+  - codes
+- name: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 devImports: []

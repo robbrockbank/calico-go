@@ -15,7 +15,7 @@ package ipsets
 
 import (
 	"github.com/projectcalico/calico-go/labels/selectors"
-	"github.com/projectcalico/libcalico/lib"
+	"github.com/projectcalico/calico-go/lib"
 )
 
 // ActiveSelectorCalculator calculates the active set of selectors from the current set of policies/profiles.

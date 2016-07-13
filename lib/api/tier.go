@@ -17,8 +17,8 @@ package api
 import (
 	"reflect"
 
-	. "github.com/projectcalico/libcalico/lib/api/unversioned"
-	. "github.com/projectcalico/libcalico/lib/common"
+	. "github.com/projectcalico/calico-go/lib/api/unversioned"
+	. "github.com/projectcalico/calico-go/lib/common"
 	"gopkg.in/go-playground/validator.v8"
 )
 

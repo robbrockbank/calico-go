@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	"github.com/projectcalico/libcalico/lib/selector"
+	"github.com/projectcalico/calico-go/lib/selector"
 	"gopkg.in/go-playground/validator.v8"
 )
 

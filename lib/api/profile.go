@@ -15,7 +15,7 @@
 package api
 
 import (
-	. "github.com/projectcalico/libcalico/lib/api/unversioned"
+	. "github.com/projectcalico/calico-go/lib/api/unversioned"
 )
 
 type ProfileMetadata struct {

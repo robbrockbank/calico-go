@@ -13,7 +13,7 @@
 // limitations under the License.
 package ipsets
 
-import "github.com/projectcalico/libcalico/lib"
+import "github.com/projectcalico/calico-go/lib"
 
 type IpsetCalculator struct {
 	keyToIPs            map[libcalico.Key][]string

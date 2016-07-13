@@ -19,7 +19,7 @@ import (
 	"regexp"
 
 	"github.com/golang/glog"
-	"github.com/projectcalico/libcalico/lib/common"
+	"github.com/projectcalico/calico-go/lib/common"
 )
 
 var (

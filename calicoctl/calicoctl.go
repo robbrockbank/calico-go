@@ -21,7 +21,7 @@ import (
 	"os"
 
 	"github.com/docopt/docopt-go"
-	"github.com/projectcalico/libcalico/calicoctl/commands"
+	"github.com/projectcalico/calico-go/calicoctl/commands"
 )
 
 func main() {

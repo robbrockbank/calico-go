@@ -17,9 +17,9 @@ package client
 import (
 	"fmt"
 
-	"github.com/projectcalico/libcalico/lib/api"
-	"github.com/projectcalico/libcalico/lib/backend"
-	"github.com/projectcalico/libcalico/lib/common"
+	"github.com/projectcalico/calico-go/lib/api"
+	"github.com/projectcalico/calico-go/lib/backend"
+	"github.com/projectcalico/calico-go/lib/common"
 )
 
 var (

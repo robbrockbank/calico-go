@@ -18,7 +18,7 @@ import (
 	"github.com/op/go-logging"
 	"github.com/projectcalico/calico-go/labels"
 	"github.com/projectcalico/calico-go/labels/selectors"
-	"github.com/projectcalico/libcalico/lib"
+	"github.com/projectcalico/calico-go/lib"
 )
 
 var log = logging.MustGetLogger("ipsets")

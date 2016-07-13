@@ -23,8 +23,8 @@ import (
 	etcd "github.com/coreos/etcd/client"
 	"github.com/coreos/etcd/pkg/transport"
 	"github.com/golang/glog"
-	"github.com/projectcalico/libcalico/lib/api"
-	"github.com/projectcalico/libcalico/lib/common"
+	"github.com/projectcalico/calico-go/lib/api"
+	"github.com/projectcalico/calico-go/lib/common"
 	"golang.org/x/net/context"
 )
 

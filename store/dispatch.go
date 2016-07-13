@@ -16,7 +16,7 @@ package store
 
 import (
 	"github.com/op/go-logging"
-	"github.com/projectcalico/libcalico/lib"
+	"github.com/projectcalico/calico-go/lib"
 	"reflect"
 )
 

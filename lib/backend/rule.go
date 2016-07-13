@@ -14,7 +14,7 @@
 
 package backend
 
-import . "github.com/projectcalico/libcalico/lib/common"
+import . "github.com/projectcalico/calico-go/lib/common"
 
 type Rule struct {
 	Action string `json:"action" validate:"backendaction"`

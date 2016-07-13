@@ -22,8 +22,8 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/projectcalico/libcalico/lib/api"
-	"github.com/projectcalico/libcalico/lib/backend"
+	"github.com/projectcalico/calico-go/lib/api"
+	"github.com/projectcalico/calico-go/lib/backend"
 )
 
 type Client struct {
