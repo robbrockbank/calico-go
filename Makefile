@@ -10,16 +10,21 @@ update-vendor:
 ut:
 	./run-uts
 
-.PHONEY: go-rebuild
-go-rebuild:
+.PHONEY: force
+force:
 	true
-bin/etcd-driver: go-rebuild
+bin/etcd-driver: force
 	mkdir -p bin
 	go build -o "$@" "./$(@F)/..."
 
-bin/calicoctl: go-rebuild
+bin/calicoctl: force
 	mkdir -p bin
 	go build -o "$@" "./calicoctl/calicoctl.go"
+
+release/calicoctl: force
+	mkdir -p release
+	docker build -t calicoctl-build -f build-calicoctl/Dockerfile .
+	docker run --rm -v `pwd`:/calico-go calicoctl-build /calico-go/build-calicoctl/build.sh
 
 clean:
 	-rm -f *.created

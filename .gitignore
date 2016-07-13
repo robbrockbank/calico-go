@@ -1,6 +1,7 @@
 *~
 *.bak
 bin
+release
 build
 calicobuild.created
 calico_containers/pycalico.egg-info/

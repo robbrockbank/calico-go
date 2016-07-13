@@ -39,9 +39,11 @@ sed -i "s/__BUILD_DATE__/${DATE}/" calicoctl/commands/build_info.go
 sed -i "s/__GIT_REVISION__/${REVISION}/" calicoctl/commands/build_info.go
 sed -i "s/__GIT_DESCRIPTION__/${DESCRIPTION}/" calicoctl/commands/build_info.go
 
-go build -o /calico-go/bin/calicoctl-$DESCRIPTION calicoctl/*.go
-cd /calico-go/bin
+go build -o /calico-go/release/calicoctl-$DESCRIPTION calicoctl/*.go
+cd /calico-go/release
 ln -sf calicoctl-$DESCRIPTION calicoctl
 
+set +x
+
 echo
-echo "Binaries bin/(calicoctl|calicoctl-$DESCRIPTION) created"
+echo "Binaries release/(calicoctl|calicoctl-$DESCRIPTION) created"
