@@ -15,12 +15,15 @@
 package ipsets_test
 
 import (
-	. "github.com/projectcalico/calico-go/ipsets"
+	. "github.com/projectcalico/calico-go/etcd-driver/ipsets"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Resolver", func() {
-
+	It("foo", func() {
+		_ = NewIpsetCalculator()
+		Expect("foo").To(Equal("foo"))
+	})
 })

@@ -16,7 +16,7 @@ package labels
 
 import (
 	"github.com/op/go-logging"
-	"github.com/projectcalico/calico-go/labels/selectors"
+	"github.com/projectcalico/calico-go/lib/selector"
 )
 
 var log = logging.MustGetLogger("labels")

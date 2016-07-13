@@ -15,12 +15,12 @@
 package labels_test
 
 import (
-	. "github.com/projectcalico/calico-go/labels"
+	. "github.com/projectcalico/calico-go/datastructures/labels"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/projectcalico/calico-go/labels/selectors"
 	"github.com/projectcalico/calico-go/lib/backend"
+	"github.com/projectcalico/calico-go/lib/selector"
 )
 
 type update struct {

@@ -16,10 +16,10 @@ package ipsets
 
 import (
 	"github.com/op/go-logging"
-	"github.com/projectcalico/calico-go/labels"
-	"github.com/projectcalico/calico-go/labels/selectors"
+	"github.com/projectcalico/calico-go/datastructures/labels"
+	"github.com/projectcalico/calico-go/etcd-driver/store"
 	"github.com/projectcalico/calico-go/lib/backend"
-	"github.com/projectcalico/calico-go/store"
+	"github.com/projectcalico/calico-go/lib/selector"
 )
 
 var log = logging.MustGetLogger("ipsets")

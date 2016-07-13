@@ -15,8 +15,8 @@
 package etcd
 
 import (
-	"github.com/projectcalico/calico-go/hwm"
-	"github.com/projectcalico/calico-go/store"
+	"github.com/projectcalico/calico-go/datastructures/hwm"
+	"github.com/projectcalico/calico-go/etcd-driver/store"
 	"time"
 
 	"github.com/coreos/etcd/client"

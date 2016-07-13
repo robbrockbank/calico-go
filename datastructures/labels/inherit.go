@@ -15,8 +15,8 @@
 package labels
 
 import (
-	"github.com/projectcalico/calico-go/labels/selectors"
-	"github.com/projectcalico/calico-go/multidict"
+	"github.com/projectcalico/calico-go/datastructures/multidict"
+	"github.com/projectcalico/calico-go/lib/selector"
 )
 
 type LabelInheritanceIndex interface {
