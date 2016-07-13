@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	matchTier = regexp.MustCompile("^/calico/v1/policy/tier/([^/]+)/metadata$")
+	matchTier = regexp.MustCompile("^/?calico/v1/policy/tier/([^/]+)/metadata$")
 )
 
 type TierKey struct {

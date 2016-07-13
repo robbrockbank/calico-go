@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	matchHostEndpoint = regexp.MustCompile("^/calico/v1/host/([^/]+)/endpoint/([^/]+)$")
+	matchHostEndpoint = regexp.MustCompile("^/?calico/v1/host/([^/]+)/endpoint/([^/]+)$")
 )
 
 type HostEndpointKey struct {

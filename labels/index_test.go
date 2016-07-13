@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/projectcalico/calico-go/labels/selectors"
+	"github.com/projectcalico/calico-go/lib/backend"
 )
 
 type update struct {

@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	matchProfile = regexp.MustCompile("^/calico/v1/policy/profile/([^/]+)/(tags|rules|labels)$")
+	matchProfile = regexp.MustCompile("^/?calico/v1/policy/profile/([^/]+)/(tags|rules|labels)$")
 )
 
 // The profile key actually returns the common parent of the three separate entries.

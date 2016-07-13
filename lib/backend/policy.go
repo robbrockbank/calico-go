@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	matchPolicy = regexp.MustCompile("^/calico/v1/policy/tier/([^/]+)/policy/([^/]+)$")
+	matchPolicy = regexp.MustCompile("^/?calico/v1/policy/tier/([^/]+)/policy/([^/]+)$")
 )
 
 type PolicyKey struct {

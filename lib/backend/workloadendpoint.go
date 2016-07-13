@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	matchWorkloadEndpoint = regexp.MustCompile("^/calico/v1/host/([^/]+)/workload/([^/]+)/([^/]+)/endpoint/([^/]+)$")
+	matchWorkloadEndpoint = regexp.MustCompile("^/?calico/v1/host/([^/]+)/workload/([^/]+)/([^/]+)/endpoint/([^/]+)$")
 )
 
 type WorkloadEndpointKey struct {
