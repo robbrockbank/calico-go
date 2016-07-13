@@ -1,41 +1,50 @@
-# Calicoctl
-This repository contains a GO version of the calicoctl binary and the libcalico library.
+# calico-go
+This repositiory contains Calico's Go components:
 
-## Building calicoctl
+- `libcalico`, which can be imported as `"github.com/projectcalico/calico-go/lib"`
+- `calicoctl`
+- the `etcd-driver`, a sub-component of Felix.
+
+## Common set-up
+
 Assuming you have already installed **go v1.6+**, perform the following simple steps to get building:
 
-1. [Install Glide](https://github.com/Masterminds/glide#install)
+- [Install Glide](https://github.com/Masterminds/glide#install)
 
-2. Clone this repository to your Go project path: 
-    ```
-    git clone git@github.com:projectcalico/calicoctl.git $GOPATH/src/github.com/projectcalico/calicoctl
-    ``` 
+- Clone this repository to your Go project path: 
+```
+git clone git@github.com:projectcalico/calico-go.git $GOPATH/src/github.com/projectcalico/calico-go
+```
 
-3. Switch to your project directory:
-    ```
-    cd $GOPATH/src/github.com/projectcalico/calicoctl
-    ```
+- Switch to your project directory:
+```
+cd $GOPATH/src/github.com/projectcalico/calico-go
+```
 
-4. Populate the `vendor/` directory in the project's root with this project's dependencies:
-    ```
-    glide install
-    ```
+- Populate the `vendor/` directory in the project's root with this project's dependencies:
+```
+glide install
+```
 
-5. Build calicoctl:
-    ```
-    go build -o calicoctl calicoctl.go
-    ```
+## Building calicoctl
 
-6. Run your built binary:
-    ```
-    ./calicoctl --help
-    ```
+### Non-release build
+To do a quick, non-release build of calicoctl, suitable for local testing, run
+```
+make bin/calicoctl
+```
 
+The binary will be put in ./bin:
+```
+./bin/calicoctl --help
+```
 
+### Release build
 
-A dockerized build of calicoctl is available which builds calicoctl in a CentOS 6.6 container.
+For releases, we use a Docker-based build to ensure a clean environment with an appropriate glibc.  Specifically, we use a CentOS 6.6 container image to build against glibc v2.12.  this ensures compatibility with any later glibc.
 
-Run:
-    ```
-    ./build-binary.sh
-    ```
+To do a release build, run:
+```
+make release/calicoctl
+```
+The binary will be emitted to `./releases/calicoctl-<version>`
