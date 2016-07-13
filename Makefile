@@ -15,7 +15,7 @@ force:
 	true
 bin/etcd-driver: force
 	mkdir -p bin
-	go build -o "$@" "./$(@F)/..."
+	go build -o "$@" "./etcd-driver/etcd-driver.go"
 
 bin/calicoctl: force
 	mkdir -p bin
