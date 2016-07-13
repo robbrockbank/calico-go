@@ -22,3 +22,5 @@ import:
   subpackages:
   - lib
   version: smc-go
+- package: github.com/ghodss/yaml
+- package: github.com/golang/glog
