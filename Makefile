@@ -8,7 +8,7 @@ update-vendor:
 	glide up
 
 ut:
-	ginkgo -r
+	./run-uts
 
 .PHONEY: go-rebuild
 go-rebuild:
