@@ -1,5 +1,5 @@
 hash: 268d4d1b7fca22a19bc58bcc4c8363a57fc6d1b1aeafe597d91b1b86ce5cee44
-updated: 2016-07-13T10:20:19.171920664+01:00
+updated: 2016-07-13T15:43:01.401339723+01:00
 imports:
 - name: github.com/cloudfoundry-incubator/candiedyaml
   version: 99c3df83b51532e3615f851d8c2dbb638f5313bf
@@ -13,7 +13,7 @@ imports:
   - pkg/fileutil
   - pkg/tlsutil
 - name: github.com/coreos/go-systemd
-  version: 5f8a27bd032fac5e5bbdcbf614a9e95e06cdbdbb
+  version: d4039021cfc2d0ea21d34afda21631314e83f75a
   subpackages:
   - journal
 - name: github.com/coreos/pkg

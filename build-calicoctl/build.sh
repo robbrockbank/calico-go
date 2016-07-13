@@ -20,9 +20,9 @@ GOPATH=/go
 PATH=$PATH:$GOPATH/bin
 
 mkdir -p $GOPATH/src/github.com/projectcalico/
-cp -r /libcalico $GOPATH/src/github.com/projectcalico/
+cp -r /calico-go $GOPATH/src/github.com/projectcalico/
 
-cd $GOPATH/src/github.com/projectcalico/libcalico
+cd $GOPATH/src/github.com/projectcalico/calico-go
 rm -rf vendor calicoctl/calicoctl
 glide install
 
@@ -39,11 +39,9 @@ sed -i "s/__BUILD_DATE__/${DATE}/" calicoctl/commands/build_info.go
 sed -i "s/__GIT_REVISION__/${REVISION}/" calicoctl/commands/build_info.go
 sed -i "s/__GIT_DESCRIPTION__/${DESCRIPTION}/" calicoctl/commands/build_info.go
 
-cd calicoctl
-go build
-cp calicoctl /libcalico/calicoctl/calicoctl-$DESCRIPTION
-cd /libcalico/calicoctl
+go build -o /calico-go/bin/calicoctl-$DESCRIPTION calicoctl/*.go
+cd /calico-go/bin
 ln -sf calicoctl-$DESCRIPTION calicoctl
 
 echo
-echo "Binary calicoctl/calicoctl-$DESCRIPTION created"
+echo "Binaries bin/(calicoctl|calicoctl-$DESCRIPTION) created"
