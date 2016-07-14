@@ -48,8 +48,8 @@ func (i *Int32OrString) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &i.NumVal)
 }
 
-// String returns the string value, or the Itoa of the int value.
-func (i *Int32OrString) String() string {
+// GoString returns the string value, or the Itoa of the int value.
+func (i Int32OrString) GoString() string {
 	if i.Type == NumOrStringString {
 		return i.StrVal
 	}
@@ -58,11 +58,15 @@ func (i *Int32OrString) String() string {
 
 // NumValue returns the NumVal if type Int, or if
 // it is a String, will attempt a conversion to int.
-func (i *Int32OrString) NumValue() (int, error) {
+func (i Int32OrString) NumValue() (int32, error) {
 	if i.Type == NumOrStringString {
-		return strconv.Atoi(i.StrVal)
+		v, err := strconv.ParseInt(i.StrVal, 10, 32)
+		if err != nil {
+			return 0, err
+		}
+		return int32(v), nil
 	}
-	return int(i.NumVal), nil
+	return i.NumVal, nil
 }
 
 // MarshalJSON implements the json.Marshaller interface.
@@ -98,7 +102,7 @@ func (f *Float32OrString) UnmarshalJSON(b []byte) error {
 }
 
 // String returns the string value, or the Itoa of the int value.
-func (f *Float32OrString) String() string {
+func (f Float32OrString) GoString() string {
 	if f.Type == NumOrStringString {
 		return f.StrVal
 	}
@@ -107,11 +111,15 @@ func (f *Float32OrString) String() string {
 
 // NumValue returns the NumVal if type Int, or if
 // it is a String, will attempt a conversion to int.
-func (f *Float32OrString) NumValue() (int, error) {
+func (f Float32OrString) NumValue() (float32, error) {
 	if f.Type == NumOrStringString {
-		return strconv.Atoi(f.StrVal)
+		v, err := strconv.ParseFloat(f.StrVal, 32)
+		if err != nil {
+			return 0, err
+		}
+		return float32(v), nil
 	}
-	return int(f.NumVal), nil
+	return f.NumVal, nil
 }
 
 // MarshalJSON implements the json.Marshaller interface.

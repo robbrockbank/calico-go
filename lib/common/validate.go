@@ -49,9 +49,10 @@ func init() {
 	RegisterFieldValidator("labels", validateLabels)
 	RegisterFieldValidator("interface", validateInterface)
 	RegisterFieldValidator("order", validateOrder)
+	RegisterFieldValidator("port", validatePort)
 
 	RegisterStructValidator(validateProtocol, Protocol{})
-	RegisterStructValidator(validatePort, Port{})
+	//RegisterStructValidator(validatePort, Port{})
 }
 
 func RegisterFieldValidator(key string, fn validator.Func) {
@@ -145,6 +146,7 @@ func validateProtocol(v *validator.Validate, structLevel *validator.StructLevel)
 	}
 }
 
+/*
 func validatePort(v *validator.Validate, structLevel *validator.StructLevel) {
 	glog.V(2).Infof("Validate port")
 	p := structLevel.CurrentStruct.Interface().(Port)
@@ -179,4 +181,38 @@ func validatePort(v *validator.Validate, structLevel *validator.StructLevel) {
 			first = num
 		}
 	}
+}
+*/
+
+func validatePort(v *validator.Validate, topStruct reflect.Value, currentStructOrField reflect.Value, field reflect.Value, fieldType reflect.Type, fieldKind reflect.Kind, param string) bool {
+	glog.V(2).Infof("Validate port")
+	p := field.Interface().(Port)
+	glog.V(2).Infof("Validate port: %v %s %v\n", p.Type, p.StrVal, p.NumVal)
+	if p.Type == NumOrStringNum && ((p.NumVal < 0) || (p.NumVal > 65535)) {
+		return false
+	} else if p.Type == NumOrStringString {
+		ports := strings.Split(p.StrVal, ":")
+		if len(ports) > 2 {
+			return false
+		}
+		first := 0
+		for _, port := range ports {
+			glog.V(2).Infof("Validate range, checking port %s\n", port)
+			num, err := strconv.Atoi(port)
+			if err != nil {
+				return false
+			}
+
+			if num < 0 || num > 65535 {
+				return false
+			}
+
+			if num < first {
+				return false
+			}
+			first = num
+		}
+	}
+
+	return true
 }

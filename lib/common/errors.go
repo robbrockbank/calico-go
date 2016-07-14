@@ -70,13 +70,13 @@ func (e ErrorValidation) Error() string {
 	if len(e.ErrFields) == 0 {
 		return "unknown validation error"
 	} else if len(e.ErrFields) == 1 {
-		return fmt.Sprintf("error with field %s = '%v'",
+		return fmt.Sprintf("error with field %s = '%#v'",
 			e.ErrFields[0].Name,
 			e.ErrFields[0].Value)
 	} else {
 		s := "error with the following fields:\n"
 		for _, f := range e.ErrFields {
-			s = s + fmt.Sprintf("-  %s = '%v'\n",
+			s = s + fmt.Sprintf("-  %s = '%#v'\n",
 				f.Name,
 				f.Value)
 		}

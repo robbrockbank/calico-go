@@ -27,7 +27,7 @@ type HostEndpointMetadata struct {
 
 type HostEndpointSpec struct {
 	InterfaceName string   `json:"interfaceName,omitempty" validate:"omitempty,interface"`
-	ExpectedIPs   []IP     `json:"expectedIPs,omitempty" validate:"omitempty,dive,ip"`
+	ExpectedIPs   []IP     `json:"expectedIPs,omitempty" validate:"omitempty"`
 	Profiles      []string `json:"profiles,omitempty" validate:"omitempty,dive,name"`
 }
 

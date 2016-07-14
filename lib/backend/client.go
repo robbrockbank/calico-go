@@ -221,7 +221,7 @@ func filterListNode(n *etcd.Node, l ListInterface) []KeyValue {
 
 func convertError(err error, key string) error {
 	if err == nil {
-		glog.V(2).Info("Comand completed without error")
+		glog.V(2).Info("Command completed without error")
 		return nil
 	}
 
