@@ -17,3 +17,4 @@ env
 *.pyc
 vendor
 venv
+temp

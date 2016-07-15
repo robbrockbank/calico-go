@@ -1,10 +1,10 @@
-hash: 268d4d1b7fca22a19bc58bcc4c8363a57fc6d1b1aeafe597d91b1b86ce5cee44
-updated: 2016-07-13T15:43:01.401339723+01:00
+hash: 7eba6d29b972d5db46465ed93581d154a084c3fac635aa3b863bfd53b05f448a
+updated: 2016-07-14T15:51:54.634313076-07:00
 imports:
 - name: github.com/cloudfoundry-incubator/candiedyaml
   version: 99c3df83b51532e3615f851d8c2dbb638f5313bf
 - name: github.com/coreos/etcd
-  version: 7114a273452024f834a500aa826e61b2615aed3b
+  version: 575682f593fa37336c0f742b04336de4df05fe99
   subpackages:
   - client
   - pkg/transport
@@ -43,7 +43,7 @@ imports:
   subpackages:
   - codec
 - name: golang.org/x/net
-  version: f841c39de738b1d0df95b5a7187744f0e03d8112
+  version: a728288923b47049b2ce791836767ffbe964a5bd
   subpackages:
   - context
 - name: google.golang.org/appengine
@@ -58,7 +58,7 @@ imports:
   - internal/log
   - internal/remote_api
 - name: gopkg.in/go-playground/validator.v8
-  version: 25f1823069d853eccffbde025dca1812fa09c14b
+  version: 7a080ada5ba072a91fd7f677bcf4d0e1aa286d39
 - name: gopkg.in/tchap/go-patricia.v2
   version: 8304b1f670ec9603eb3eebcb3bd08e13a8a2630b
   subpackages:
